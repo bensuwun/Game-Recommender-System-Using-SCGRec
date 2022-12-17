@@ -1,5 +1,10 @@
 # steam_data folders
 steam_data
+steam_data_tiny
+
+# debugging
+test_main.py
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

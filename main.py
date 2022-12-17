@@ -19,7 +19,9 @@ from utils.parser import parse_args
 from utils.dataloader_steam import Dataloader_steam
 from utils.dataloader_item_graph import Dataloader_item_graph
 
-from models.RGCNModel_steam_rank import RGCNModel_steam_rank
+# Not found in repository, originally used for performance comparison 
+# from models.RGCNModel_steam_rank import RGCNModel_steam_rank
+
 from models.Predictor import HeteroDotProductPredictor
 from models.model import Proposed_model
 
@@ -83,7 +85,7 @@ if __name__ == '__main__':
         device = 'cpu'
 
     # TODO: Change path to steam_data folder's directory
-    path = '../../Desktop/steam_data'
+    path = 'steam_data'
 
     user_id_path = path + '/users.txt'
     app_id_path = path + '/app_id.txt'

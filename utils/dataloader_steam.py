@@ -31,8 +31,8 @@ class Dataloader_steam(DGLDataset):
         self.graph_path = self.root_path + '/graph.bin'     # graph.bin derived from dgl.save_graphs(...)
         self.game_path = self.root_path + '/train_game.txt'
         self.time_path = self.root_path + '/train_time.txt'
-        self.valid_path = self.root_path + '/valid_game.txt'
-        self.test_path = self.root_path + '/test_game.txt'
+        self.valid_path = self.root_path + '/valid_data/valid_game.txt'
+        self.test_path = self.root_path + '/test_data/test_game.txt'
 
         logging.info("reading user id mapping from {}".format(self.user_id_path))
         self.user_id_mapping = self.read_id_mapping(self.user_id_path)
@@ -61,10 +61,10 @@ class Dataloader_steam(DGLDataset):
 
     def build_valid_data(self, path):
         """
-            Used for reading and building the validation and test sets (both text files have similar structure).
+            Used for reading and building the validation and test sets.
             Example return value: {'1234': [23, 42, 52]} 
 
-            :return: Dictionary where keys = mapped user IDs, values = list of mapped game IDs or dwelling time owned by user.
+            :return: Dictionary where keys = mapped user IDs, values = list of mapped game IDs owned by user.
         """
         users = {}
         with open(path, 'r') as f:
@@ -264,57 +264,6 @@ class Dataloader_steam(DGLDataset):
                     count += 1
         return mapping
 
-    def read_app_info(self, path):
-        """
-            Reads the appInfo txt file. Performs one hot encoding on the Type column, 
-            replaces unrated metacritic scores with the global mean, and normalized certain columns.
-
-            :return: Dictionary, keys = mapped App IDs, values = numpy arrays containing _____ <not sure which columns are being returned>
-        """
-        dic = {}
-        df = pd.read_csv(path, header = None)
-
-        # Do OneHotEncoding on Type column (e.g. game, dlc, mod)
-        df = pd.get_dummies(df, columns = [2])
-
-        df_time = pd.to_datetime(df.iloc[:, 3])
-        date_end = pd.to_datetime('2013-06-25')
-        time_sub = date_end - df_time
-        time_sub = time_sub.dt.days
-        df = pd.concat([df, time_sub], axis = 1)
-
-        column_num = len(df.columns)
-        column_index = [2]
-        column_index.extend([i for i in range(4, column_num)])
-
-        logging.info("begin feature engineering")
-        # Replace no metacritic scores from NaN to the mean of all metacritic scores
-        df.iloc[:, 4].replace(to_replace = -1, value = np.nan, inplace = True)
-        mean = df.iloc[:, 4].mean()
-        df.iloc[:, 4].replace(to_replace = np.nan, value = mean, inplace = True)
-
-        # TODO: Determine which columns are being normalized
-        columns_norm = [2, 4, 5, 11]
-        mean = df.iloc[:, columns_norm].mean()
-        std = df.iloc[:, columns_norm].std()
-        df.iloc[:, columns_norm] = (df.iloc[:, columns_norm] - mean) / std
-
-        for i in range(len(df)):
-            app_id = self.app_id_mapping[str(df.iloc[i, 0])]
-            feature = df.iloc[i, column_index].to_numpy()
-            feature = feature.astype(np.float64)
-            dic[app_id] = feature
-        dic['feature_num'] = len(feature)
-        return dic
-
-    def read_friends(self, path):
-        ls = []
-        with open(path, 'r') as f:
-            for line in f:
-                line = line.strip().split(',')
-                ls.append([self.user_id_mapping[line[0]], self.user_id_mapping[line[1]]])
-        return torch.tensor(ls)
-
     def read_mapping(self, path):
         """
             Used to read the Developers, Genres, and Publishers txt files.
@@ -339,3 +288,58 @@ class Dataloader_steam(DGLDataset):
         for key in mapping:
             mapping[key] = mapping_value2id[mapping[key]]
         return mapping
+
+    def read_app_info(self, path):
+        """
+            Reads the appInfo txt file. Performs one hot encoding on the Type column, 
+            replaces unrated metacritic scores with the global mean, and normalized certain columns. Also normalized numerical values 
+            and changes required_age to NaN if required age is 0.
+
+            :return: Dictionary, keys = mapped App ID, 
+                                 values = numpy array containing normalized price, metacritic score, required age, isMulti, OHE, and days elapsed.
+        """
+        dic = {}
+        df = pd.read_csv(path, header = None)
+
+        # Do OneHotEncoding on Type column (e.g. game, dlc, mod)
+        df = pd.get_dummies(df, columns = [2])
+
+        df_time = pd.to_datetime(df.iloc[:, 3])
+        date_end = pd.to_datetime('2013-06-25')
+        time_sub = date_end - df_time
+        time_sub = time_sub.dt.days
+        df = pd.concat([df, time_sub], axis = 1)
+
+        # Get column indexes beyond released date (ALL numericals e.g. price, metacritic score, required age, isMulti, OHE, days elapsed)
+        #       column index = [2,4,5,6,7,8,9,10,11]
+        column_num = len(df.columns)
+        column_index = [2]
+        column_index.extend([i for i in range(4, column_num)])
+
+        logging.info("begin feature engineering")
+        # Replace no metacritic scores to NaN, then replace NaN to mean of all metacritic scores
+        df.iloc[:, 4].replace(to_replace = -1, value = np.nan, inplace = True)
+        mean = df.iloc[:, 4].mean()
+        df.iloc[:, 4].replace(to_replace = np.nan, value = mean, inplace = True)
+
+        # Normalize 2-price, 4-metacritic scores, 5-required age, and 11-days elapsed
+        columns_norm = [2, 4, 5, 11]
+        mean = df.iloc[:, columns_norm].mean()
+        std = df.iloc[:, columns_norm].std()
+        df.iloc[:, columns_norm] = (df.iloc[:, columns_norm] - mean) / std
+
+        for i in range(len(df)):
+            app_id = self.app_id_mapping[str(df.iloc[i, 0])]
+            feature = df.iloc[i, column_index].to_numpy()
+            feature = feature.astype(np.float64)
+            dic[app_id] = feature
+        dic['feature_num'] = len(feature)
+        return dic
+
+    def read_friends(self, path):
+        ls = []
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip().split(',')
+                ls.append([self.user_id_mapping[line[0]], self.user_id_mapping[line[1]]])
+        return torch.tensor(ls)
