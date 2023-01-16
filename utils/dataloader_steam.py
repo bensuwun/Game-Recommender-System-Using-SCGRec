@@ -1,7 +1,7 @@
 import os
 import sys
 from dgl.data.utils import save_graphs
-from tqdm import tqdm
+from tqdm import tqdm   # used to show progress bar when iterating
 from scipy import stats
 from .NegativeSampler import NegativeSampler
 import pdb
@@ -55,9 +55,32 @@ class Dataloader_steam(DGLDataset):
 
         else:
             self.process()
-            dgl.save_graphs(self.graph_path, self.graph)
+            #dgl.save_graphs(self.graph_path, self.graph)
 
         self.dataloader = self.build_dataloader(self.args, self.graph)
+
+    def __getitem__(self, i):
+        pass
+
+    def __len__(self):
+        pass
+
+    def read_id_mapping(self, path):
+        """
+            Used for reading the app_id.txt and users.txt, both of which contain a list of IDs in single-data format.
+            Sample return value: {'273813': 0, '2312515': 1}
+
+            :return: Dictionary, key = ID, value = mapped ID
+        """
+        mapping = {}
+        count = 0
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line not in mapping:
+                    mapping[line] = count
+                    count += 1
+        return mapping
 
     def build_valid_data(self, path):
         """
@@ -76,17 +99,11 @@ class Dataloader_steam(DGLDataset):
                 users[user] = games
         return users
 
-    def build_dataloader(self, args, graph):
-        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.layers, return_eids = False)
-        train_id = torch.tensor([i for i in range(graph.edges(etype = 'play')[0].shape[0])], dtype = torch.long)
-        dataloader = dgl.dataloading.EdgeDataLoader(
-            graph, {('user', 'play', 'game'): train_id},
-            sampler, negative_sampler = NegativeSampler(self.dic_user_game), batch_size = args.batch_size, shuffle = True, num_workers = 2
-        )
-        return dataloader
-
-
     def process(self):
+        """
+            When the graph (graph.bin) has not been generated, this method is used to set the following: 
+            (1) app_info, (2) publisher, (3) developer, (4) genre, (5) user_game, (6) dic_user_game, (7) friends, (8) graph
+        """
         logging.info("reading app info from {}".format(self.app_info_path))
         self.app_info = self.read_app_info(self.app_info_path)
 
@@ -100,7 +117,6 @@ class Dataloader_steam(DGLDataset):
         self.genre = self.read_mapping(self.genres_path)
 
         logging.info("reading user item play time from {}".format(self.game_path))
-
         self.user_game, self.dic_user_game = self.read_play_time_rank(self.game_path, self.time_path)
 
         logging.info("reading friend list from {}".format(self.friends_path))
@@ -126,20 +142,23 @@ class Dataloader_steam(DGLDataset):
 
             ('game', 'played by', 'user'): (self.user_game[:, 1].long(), self.user_game[:, 0].long())
         }
+        # Create heterogenous graph
         graph = dgl.heterograph(graph_data)
 
         ls_feature = []
 
+        # Get app info of game nodes and store in ls_feature
         for node in graph.nodes('game'):
             node = int(node)
             if node in self.app_info:
                 ls_feature.append(self.app_info[node])
 
         ls_feature = np.vstack(ls_feature)
-        feature_mean = ls_feature.mean(0)
-
+        feature_mean = ls_feature.mean(0) # Compute mean vertically (e.g. compute the mean of each feature)
+        
         ls_feature = []
 
+        # Store game node's app info in ls_feature, if game ID is not in app info, use computed mean instead
         count_total = 0
         count_without_feature = 0
         for node in graph.nodes('game'):
@@ -152,7 +171,9 @@ class Dataloader_steam(DGLDataset):
                 ls_feature.append(feature_mean)
         logging.info("total game number is {}, games without features number is {}".format(count_total,count_without_feature ))
 
+        # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
+
         # Add dwelling time to edges with type "play" and "played by"
         graph.edges['play'].data['time'] = self.user_game[:, 2]
         graph.edges['played by'].data['time'] = self.user_game[:, 2]
@@ -161,138 +182,11 @@ class Dataloader_steam(DGLDataset):
         graph.edges['play'].data['percentile'] = self.user_game[:, 3]
         graph.edges['played by'].data['percentile'] = self.user_game[:, 3]
         self.graph = graph
-
-    def __getitem__(self, i):
-        pass
-
-    def __len__(self):
-        pass
-
-    def generate_percentile(self, ls):
-        dic = {}
-        for ls_i in ls:
-            if ls_i[1] in dic:
-                dic[ls_i[1]].append(ls_i[2])
-            else:
-                dic[ls_i[1]] = [ls_i[2]]
-        for key in tqdm(dic):
-            dic[key] = sorted(list(set(dic[key])))
-        dic_percentile = {}
-
-        for key in tqdm(dic):
-            dic_percentile[key] = {}
-            length = len(dic[key])
-            for i in range(len(dic[key])):
-                time = dic[key][i]
-                dic_percentile[key][time] = (i + 1) / length
-
-
-        for i in tqdm(range(len(ls))):
-            ls[i].append(dic_percentile[ls[i][1]][ls[i][2]])
-        return ls
-
-
-    def read_dic_user_game(self, game_path):
-        dic_game = {}
-        with open(game_path, 'r') as f_game:
-            lines_game = f_game.readlines()
-            for i in tqdm(range(len(lines_game))):
-                line_game = lines_game[i].strip().split(',')
-                user = self.user_id_mapping[line_game[0]]
-
-                dic_game[user] = []
-                for j in range(1, len(line_game)):
-                    game = self.app_id_mapping[line_game[j]]
-                    dic_game[user].append(game)
-        return dic_game
-
-
-    def read_play_time_rank(self, game_path, time_path):
-        ls = []
-        dic_game = {}
-        dic_time = {}
-        with open(game_path, 'r') as f_game:
-            with open(time_path, 'r') as f_time:
-                lines_game = f_game.readlines()
-                lines_time = f_time.readlines()
-                for i in tqdm(range(len(lines_game))):
-                    line_game = lines_game[i].strip().split(',')
-                    line_time = lines_time[i].strip().split(',')
-                    user = self.user_id_mapping[line_game[0]]
-                    dic_game[user] = []
-
-                    for j in range(1, len(line_game)):
-                        game = self.app_id_mapping[line_game[j]]
-                        dic_game[user].append(game)
-                        time = line_time[j]
-                        if time == r'\N':
-                            ls.append([user, game, 0])
-                        else:
-                            ls.append([user, game, float(time)])
-        logging.info('generate percentiles')
-        ls = self.generate_percentile(ls)
-        return torch.tensor(ls), dic_game
-
-    def read_play_time(self, path):
-        ls = []
-        with open(path, 'r', encoding = 'utf8') as f:
-            for line in f:
-                line = line.strip().split(',')
-                if line[-1] == r'\N':
-                    ls.append([self.user_id_mapping[line[0]], self.app_id_mapping[line[1]], 0])
-                else:
-                    ls.append([self.user_id_mapping[line[0]], self.app_id_mapping[line[1]], int(line[2])])
-        logging.info('generate percentiles')
-        ls = self.generate_percentile(ls)
-        return torch.tensor(ls)
-
     
-    def read_id_mapping(self, path):
-        """
-            Used for reading the app_id.txt and users.txt, both of which contain a list of IDs in single-data format.
-            Sample result: {'273813': 0, '2312515': 1}
-
-            :return: Dictionary, key = ID, value = mapped ID
-        """
-        mapping = {}
-        count = 0
-        with open(path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line not in mapping:
-                    mapping[line] = count
-                    count += 1
-        return mapping
-
-    def read_mapping(self, path):
-        """
-            Used to read the Developers, Genres, and Publishers txt files.
-            Sample return value: 
-
-            :return: Dictionary, where keys = mapped AppIDs, values = Developer/Genre/Publisher
-        """
-        mapping = {}
-        with open(path, 'r') as f:
-            for line in f:
-                line = line.strip().split(',')
-                # If app ID not yet in mapping
-                if line[0] not in mapping:
-                    if line[1] != '':
-                        mapping[self.app_id_mapping[line[0]]] = line[1]
-        mapping_value2id = {}
-        count = 0
-        for value in mapping.values():
-            if value not in mapping_value2id:
-                mapping_value2id[value] = count
-                count += 1
-        for key in mapping:
-            mapping[key] = mapping_value2id[mapping[key]]
-        return mapping
-
     def read_app_info(self, path):
         """
             Reads the appInfo txt file. Performs one hot encoding on the Type column, 
-            replaces unrated metacritic scores with the global mean, and normalized certain columns. Also normalized numerical values 
+            replaces unrated metacritic scores with the global mean. Normalizes certain columns. Also normalized numerical values 
             and changes required_age to NaN if required age is 0.
 
             :return: Dictionary, keys = mapped App ID, 
@@ -335,11 +229,163 @@ class Dataloader_steam(DGLDataset):
             dic[app_id] = feature
         dic['feature_num'] = len(feature)
         return dic
+    
+    def read_mapping(self, path):
+        """
+            Used to read the Developers, Genres, and Publishers txt files. Only reads the first developer/genre/publisher found.
+            Sample return value: {0: 0, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 3}
+
+            :return: Dictionary, where keys = mapped AppIDs, values = mapped Developer/Genre/Publisher ID (first record found)
+        """
+        mapping = {}
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip().split(',')
+                # If app ID not yet in mapping
+                if line[0] not in mapping:
+                    if line[1] != '':
+                        mapping[self.app_id_mapping[line[0]]] = line[1]
+        mapping_value2id = {}
+        count = 0
+        # Map values too (e.g. Valve = 0, SEGA = 1)
+        for value in mapping.values():
+            if value not in mapping_value2id:
+                mapping_value2id[value] = count
+                count += 1
+        for key in mapping:
+            mapping[key] = mapping_value2id[mapping[key]]
+        # print(mapping)
+        return mapping
+    
+    def read_play_time_rank(self, game_path, time_path):
+        """
+            Reads train_game and train_time text files. Uses the generate_percentile to generate rankings for dwelling time.
+        """
+        ls = [] # list that will store [user, game, dwelling time, ranking] values
+        dic_game = {}
+        dic_time = {}
+        with open(game_path, 'r') as f_game:
+            with open(time_path, 'r') as f_time:
+                lines_game = f_game.readlines()
+                lines_time = f_time.readlines()
+                # For each user
+                for i in tqdm(range(len(lines_game))):
+                    line_game = lines_game[i].strip().split(',')
+                    line_time = lines_time[i].strip().split(',')
+                    user = self.user_id_mapping[line_game[0]]
+                    dic_game[user] = []
+
+                    # For each game owned by user
+                    for j in range(1, len(line_game)):
+                        game = self.app_id_mapping[line_game[j]]
+                        dic_game[user].append(game)
+                        time = line_time[j]
+                        # Replace \N dwelling time values with 0
+                        if time == r'\N':
+                            ls.append([user, game, 0])
+                        else:
+                            ls.append([user, game, float(time)])
+        logging.info('generate percentiles')
+        # Append new percentile column to each [user, game, dwelling time] list 
+        ls = self.generate_percentile(ls)
+
+        # print(torch.tensor(ls))
+        # print(torch.tensor(ls).shape)
+        return torch.tensor(ls), dic_game
+
+    def generate_percentile(self, ls):
+        """
+            Generates a percentile score for a given [user, game, dwelling time] list.
+            @param ls (2D List) - rows = [mapped user ID, mapped game ID, dwelling time].
+            
+            :return: 2D List, appended percentage score for each row
+        """
+        dic = {}   
+        # Create dictionary where keys = mapped game IDs, values = list of dwelling times
+        for ls_i in ls:
+            if ls_i[1] in dic:
+                dic[ls_i[1]].append(ls_i[2])
+            else:
+                dic[ls_i[1]] = [ls_i[2]]
+        # Sort dwelling times for each game, remove repeating values
+        for key in tqdm(dic):
+            dic[key] = sorted(list(set(dic[key])))
+
+        dic_percentile = {}
+        for key in tqdm(dic):
+            dic_percentile[key] = {}
+            length = len(dic[key])
+            # Create percentile for each time of a given game
+            # Formula: i / number of dwelling times, where i = position of element in list
+            for i in range(len(dic[key])):
+                time = dic[key][i]
+                dic_percentile[key][time] = (i + 1) / length
+
+        # Append new percentiles of game's dwelling time to ls dictionary as a new column
+        for i in tqdm(range(len(ls))):
+            ls[i].append(dic_percentile[ls[i][1]][ls[i][2]])
+        return ls
 
     def read_friends(self, path):
+        """
+            Reads the friends.txt file. Creates a 2D Tensor with size (n, 2), where n is the number of user-user friends.
+            Each row represents a friend relationship using mapped user IDs 
+                Ex: [1, 2], user 1 is friends with user 2
+            
+            :return: Tensor, size (n, 2) representing list of friends.
+        """
         ls = []
         with open(path, 'r') as f:
             for line in f:
                 line = line.strip().split(',')
                 ls.append([self.user_id_mapping[line[0]], self.user_id_mapping[line[1]]])
         return torch.tensor(ls)
+
+    def read_dic_user_game(self, game_path):
+        """
+            Reads the train_game.txt file. Used when the graph.bin file has already been generated and 
+            the program does not need to go through the entire process() method.
+            
+            :return: Dictionary, keys = mapped user IDs, values = list of mapped game IDs owner by user
+        """
+        dic_game = {}
+        with open(game_path, 'r') as f_game:
+            lines_game = f_game.readlines()
+            for i in tqdm(range(len(lines_game))):
+                line_game = lines_game[i].strip().split(',')
+                user = self.user_id_mapping[line_game[0]]
+
+                dic_game[user] = []
+                for j in range(1, len(line_game)):
+                    game = self.app_id_mapping[line_game[j]]
+                    dic_game[user].append(game)
+        return dic_game
+
+
+    def read_play_time(self, path):
+        """
+            NOTE: Not used in this project, but was originally intended for user_game.txt - a variation of train_game.txt and train_time.txt.
+            Reads the user_game.txt file, returns a Tensor with size (n, 4).
+
+            :return: Tensor, size (n,4) where each row contains [mapped user ID, mapped game ID, dwelling time, percentile]
+        """
+        ls = []
+        with open(path, 'r', encoding = 'utf8') as f:
+            for line in f:
+                line = line.strip().split(',')
+                if line[-1] == r'\N':
+                    ls.append([self.user_id_mapping[line[0]], self.app_id_mapping[line[1]], 0])
+                else:
+                    ls.append([self.user_id_mapping[line[0]], self.app_id_mapping[line[1]], int(line[2])])
+        logging.info('generate percentiles')
+        ls = self.generate_percentile(ls)
+        return torch.tensor(ls)
+
+    def build_dataloader(self, args, graph):
+        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.layers, return_eids = False)
+        train_id = torch.tensor([i for i in range(graph.edges(etype = 'play')[0].shape[0])], dtype = torch.long)
+        dataloader = dgl.dataloading.EdgeDataLoader(
+            graph, {('user', 'play', 'game'): train_id},
+            sampler, negative_sampler = NegativeSampler(self.dic_user_game), batch_size = args.batch_size, shuffle = True, num_workers = 2
+        )
+        return dataloader
