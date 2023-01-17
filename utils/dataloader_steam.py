@@ -2,9 +2,7 @@ import os
 import sys
 from dgl.data.utils import save_graphs
 from tqdm import tqdm   # used to show progress bar when iterating
-from scipy import stats
 from .NegativeSampler import NegativeSampler
-import pdb
 import torch
 import logging
 logging.basicConfig(stream = sys.stdout, level = logging.INFO)
@@ -12,7 +10,6 @@ import numpy as np
 import dgl
 from dgl.data import DGLDataset
 import pandas as pd
-from sklearn import preprocessing
 
 class Dataloader_steam(DGLDataset):
     def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, device = 'cpu', name = 'steam'):
@@ -55,6 +52,7 @@ class Dataloader_steam(DGLDataset):
 
         else:
             self.process()
+            # TODO: Uncomment when ready to save
             #dgl.save_graphs(self.graph_path, self.graph)
 
         self.dataloader = self.build_dataloader(self.args, self.graph)
@@ -382,10 +380,20 @@ class Dataloader_steam(DGLDataset):
         return torch.tensor(ls)
 
     def build_dataloader(self, args, graph):
+        """
+            Build EdgeDataLoader from graph using MultiLayerFullNeighbor sample and custom NegativeSampler.
+
+            :return: EdgeDataLoader object containing {inputNodes, sub_graph, neg_sub_graph, blocks}
+        """
+        # Create sampler that takes messages from all neighbors
         sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.layers, return_eids = False)
+        
+        # Generate unique ids for each edge with type 'play'
         train_id = torch.tensor([i for i in range(graph.edges(etype = 'play')[0].shape[0])], dtype = torch.long)
+
         dataloader = dgl.dataloading.EdgeDataLoader(
             graph, {('user', 'play', 'game'): train_id},
             sampler, negative_sampler = NegativeSampler(self.dic_user_game), batch_size = args.batch_size, shuffle = True, num_workers = 2
         )
+
         return dataloader

@@ -84,8 +84,8 @@ if __name__ == '__main__':
     else:
         device = 'cpu'
 
-    # TODO: Change path to steam_data folder's directory
-    path = 'steam_data'
+    # Path: current working directory
+    path = 'steam_data_tiny'
 
     user_id_path = path + '/users.txt'
     app_id_path = path + '/app_id.txt'
