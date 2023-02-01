@@ -1,5 +1,7 @@
 # conda install -c conda-forge vadersentiment
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 def getSentimentScores():
@@ -15,4 +17,19 @@ def getSentimentScores():
     print(scores)
 
 def getCosineSimilarityScores():
-    pass
+    descriptions = ['CSGO is an online first person shooter game.', 
+    'Yugioh Master Duel is a card game where you can face enemies online.', 
+    'EA Sports FIFA 23 is a football game that you play with your friends locally or online!']
+
+    vectorizer = TfidfVectorizer(stop_words='english')
+
+    tfidf_matrix = vectorizer.fit_transform(descriptions)
+
+    # print(tfidf_matrix.shape)
+
+    cosine_similarity_matrix = cosine_similarity(tfidf_matrix, tfidf_matrix)
+    print(cosine_similarity_matrix)
+
+if __name__ == '__main__':
+    getSentimentScores()
+    getCosineSimilarityScores()
