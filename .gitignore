@@ -5,6 +5,8 @@ steam_data_tiny
 # debugging
 test_main.py
 
+# ben utils
+eda
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

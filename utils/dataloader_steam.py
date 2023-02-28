@@ -12,7 +12,7 @@ from dgl.data import DGLDataset
 import pandas as pd
 
 class Dataloader_steam(DGLDataset):
-    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, device = 'cpu', name = 'steam'):
+    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, tags_path, country_path, device = 'cpu', name = 'steam'):
         logging.info("steam dataloader init")
 
         self.args = args
@@ -24,6 +24,8 @@ class Dataloader_steam(DGLDataset):
         self.developer_path = developer_path
         self.publisher_path = publisher_path
         self.genres_path = genres_path
+        self.tags_path = tags_path
+        self.country_path = country_path
         self.device = device
         self.graph_path = self.root_path + '/graph.bin'     # graph.bin derived from dgl.save_graphs(...)
         self.game_path = self.root_path + '/train_game.txt'
@@ -114,6 +116,12 @@ class Dataloader_steam(DGLDataset):
         logging.info("reading genre from {}".format(self.genres_path))
         self.genre = self.read_mapping(self.genres_path)
 
+        logging.info("reading tag from {}".format(self.tags_path))
+        self.tag = self.read_mapping(self.tags_path)
+
+        logging.info("reading user country code from {}".format(self.country_path))
+        self.country = self.read_country_mapping(self.country_path)
+
         logging.info("reading user item play time from {}".format(self.game_path))
         self.user_game, self.dic_user_game = self.read_play_time_rank(self.game_path, self.time_path)
 
@@ -135,6 +143,11 @@ class Dataloader_steam(DGLDataset):
             ('game', 'genre', 'type'): (torch.tensor(list(self.genre.keys())), torch.tensor(list(self.genre.values()))),
 
             ('type', 'genred', 'game'): (torch.tensor(list(self.genre.values())), torch.tensor(list(self.genre.keys()))),
+
+            #* added tags to graph
+            ('game', 'tag', 'tag_type'): (torch.tensor(list(self.tag.keys())), torch.tensor(list(self.tag.values()))),
+
+            ('tag_type', 'tagged', 'game'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
 
             ('user', 'play', 'game'): (self.user_game[:, 0].long(), self.user_game[:, 1].long()),
 
@@ -170,9 +183,20 @@ class Dataloader_steam(DGLDataset):
         logging.info("total game number is {}, games without features number is {}".format(count_total,count_without_feature ))
 
         # Add app info to game nodes, which have been stored in ls_feature
+        # print("Tensor ls_feature")
+        # print(torch.tensor(np.vstack(ls_feature)))
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
 
-        # Add dwelling time to edges with type "play" and "played by"
+        #* Add country to user node
+        # print("Tensor user countries")
+        # print(torch.tensor(list(self.country.values())))
+
+        # print("User nodes")
+        # print(graph.nodes['user'])
+        # graph.nodes['user'].data['country_code'] = torch.tensor(list(self.country.values()))
+        # graph.nodes['user'].data['country_code'] = torch.tensor(np.vstack(list(self.country.values())))
+
+        # Add dwelling time to edges with type "play" and "played by" (1D Tensor Array consisting of dwelling time)
         graph.edges['play'].data['time'] = self.user_game[:, 2]
         graph.edges['played by'].data['time'] = self.user_game[:, 2]
 
@@ -253,6 +277,31 @@ class Dataloader_steam(DGLDataset):
         for key in mapping:
             mapping[key] = mapping_value2id[mapping[key]]
         # print(mapping)
+        return mapping
+
+    def read_country_mapping(self, path):
+        """
+            Used to read the user_country txt file. Similar to read_mapping but checks user ID mapping instead of app ID mapping.
+
+            :return: Dictionary, where keys = mapped userIDs, values = mapped country code ID
+        """
+        mapping = {}
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip().split(',')
+                # If app ID not yet in mapping
+                if line[0] not in mapping:
+                    if line[1] != '':
+                        mapping[self.user_id_mapping[line[0]]] = line[1]
+        mapping_value2id = {}
+        count = 0
+        # Map values too (e.g. Valve = 0, SEGA = 1)
+        for value in mapping.values():
+            if value not in mapping_value2id:
+                mapping_value2id[value] = count
+                count += 1
+        for key in mapping:
+            mapping[key] = mapping_value2id[mapping[key]]
         return mapping
     
     def read_play_time_rank(self, game_path, time_path):
