@@ -149,6 +149,11 @@ class Dataloader_steam(DGLDataset):
 
             ('tag_type', 'tagged', 'game'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
 
+            #* added users' countries (if publicly available) to graph
+            ('user', 'location', 'country'): (torch.tensor(list(self.tag.keys())), torch.tensor(list(self.tag.values()))),
+
+            ('country', 'locationed', 'user'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
+
             ('user', 'play', 'game'): (self.user_game[:, 0].long(), self.user_game[:, 1].long()),
 
             ('game', 'played by', 'user'): (self.user_game[:, 1].long(), self.user_game[:, 0].long())
@@ -183,18 +188,7 @@ class Dataloader_steam(DGLDataset):
         logging.info("total game number is {}, games without features number is {}".format(count_total,count_without_feature ))
 
         # Add app info to game nodes, which have been stored in ls_feature
-        # print("Tensor ls_feature")
-        # print(torch.tensor(np.vstack(ls_feature)))
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
-
-        #* Add country to user node
-        # print("Tensor user countries")
-        # print(torch.tensor(list(self.country.values())))
-
-        # print("User nodes")
-        # print(graph.nodes['user'])
-        # graph.nodes['user'].data['country_code'] = torch.tensor(list(self.country.values()))
-        # graph.nodes['user'].data['country_code'] = torch.tensor(np.vstack(list(self.country.values())))
 
         # Add dwelling time to edges with type "play" and "played by" (1D Tensor Array consisting of dwelling time)
         graph.edges['play'].data['time'] = self.user_game[:, 2]
@@ -289,9 +283,9 @@ class Dataloader_steam(DGLDataset):
         with open(path, 'r') as f:
             for line in f:
                 line = line.strip().split(',')
-                # If app ID not yet in mapping
+                # If user ID not yet in mapping, only create nodes for users with countries
                 if line[0] not in mapping:
-                    if line[1] != '':
+                    if line[1] != "None":
                         mapping[self.user_id_mapping[line[0]]] = line[1]
         mapping_value2id = {}
         count = 0
