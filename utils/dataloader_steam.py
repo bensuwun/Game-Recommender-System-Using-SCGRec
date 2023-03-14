@@ -12,7 +12,7 @@ from dgl.data import DGLDataset
 import pandas as pd
 
 class Dataloader_steam(DGLDataset):
-    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, device = 'cpu', name = 'steam'):
+    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, app_sentiment_scores_path, device = 'cpu', name = 'steam'):
         logging.info("steam dataloader init")
 
         self.args = args
@@ -24,6 +24,7 @@ class Dataloader_steam(DGLDataset):
         self.developer_path = developer_path
         self.publisher_path = publisher_path
         self.genres_path = genres_path
+        self.app_sentiment_scores_path = app_sentiment_scores_path
         self.device = device
         self.graph_path = self.root_path + '/graph.bin'     # graph.bin derived from dgl.save_graphs(...)
         self.game_path = self.root_path + '/train_game.txt'
@@ -104,6 +105,10 @@ class Dataloader_steam(DGLDataset):
         """
         logging.info("reading app info from {}".format(self.app_info_path))
         self.app_info = self.read_app_info(self.app_info_path)
+
+        #* Add review sentiment scores of game textual reviews
+        logging.info("reading sentiment scores from {}".format(self.app_sentiment_scores_path))
+        self.app_sentiment_scores = self.read_sentiment_scores(self.app_sentiment_scores_path) 
 
         logging.info("reading publisher from {}".format(self.publisher_path))
         self.publisher = self.read_mapping(self.publisher_path)
@@ -227,6 +232,21 @@ class Dataloader_steam(DGLDataset):
             dic[app_id] = feature
         dic['feature_num'] = len(feature)
         return dic
+
+    def read_sentiment_scores(self, path):
+        senti_scores = pd.read_pickle(path)
+        
+        # Get the mean/median/mode of each app's sentiment scores
+        generalized_senti_scores = senti_scores.mean(axis = 1)
+
+        # Get the app's mapped ID, then append the mean/median/mode sentiment score to self.app_info
+        for appid, score in generalized_senti_scores.items():
+            mapped_appid = self.app_id_mapping[str(appid)]
+
+            # NOTE: Some apps do not have app_infos, need to do prior check
+            if mapped_appid in self.app_info:
+                self.app_info[mapped_appid] = np.append(self.app_info[mapped_appid], score)
+            
     
     def read_mapping(self, path):
         """
