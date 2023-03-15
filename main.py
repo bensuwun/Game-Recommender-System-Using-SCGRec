@@ -97,71 +97,71 @@ if __name__ == '__main__':
     cos_similarity_path = path + '/cosine_description.pkl'
 
     # Build user-item and user-user heterogeneous
-    # DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path)
+    DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path)
 
-    # graph = DataLoader.graph
+    graph = DataLoader.graph
     # Build item-item heterogeneous graph
     DataLoader_item = Dataloader_item_graph(app_id_path, publisher_path, developer_path, genres_path, cos_similarity_path)
 
-    # graph_item = DataLoader_item.graph
+    graph_item = DataLoader_item.graph
 
-    # graph_social = dgl.edge_type_subgraph(graph, [('user', 'friend of', 'user')])
+    graph_social = dgl.edge_type_subgraph(graph, [('user', 'friend of', 'user')])
 
-    # graph = dgl.edge_type_subgraph(graph, [('user', 'play', 'game'), ('game', 'played by', 'user')])
-    # graph.update_all(fn.copy_edge('percentile', 'm'), fn.sum('m', 'total'), etype = 'played by')
-    # graph.apply_edges(func = fn.e_div_v('percentile', 'total', 'weight'), etype = 'played by')
+    graph = dgl.edge_type_subgraph(graph, [('user', 'play', 'game'), ('game', 'played by', 'user')])
+    graph.update_all(fn.copy_edge('percentile', 'm'), fn.sum('m', 'total'), etype = 'played by')
+    graph.apply_edges(func = fn.e_div_v('percentile', 'total', 'weight'), etype = 'played by')
 
-    # valid_user = list(DataLoader.valid_data.keys())
-    # train_mask = torch.zeros(len(valid_user), graph.num_nodes('game'))
-    # for i in range(len(valid_user)):
-    #     user = valid_user[i]
-    #     item_train = torch.tensor(DataLoader.dic_user_game[user])
-    #     train_mask[i, :][item_train] = 1
-    # train_mask = train_mask.bool()
+    valid_user = list(DataLoader.valid_data.keys())
+    train_mask = torch.zeros(len(valid_user), graph.num_nodes('game'))
+    for i in range(len(valid_user)):
+        user = valid_user[i]
+        item_train = torch.tensor(DataLoader.dic_user_game[user])
+        train_mask[i, :][item_train] = 1
+    train_mask = train_mask.bool()
 
-    # model = Proposed_model(args, graph, graph_item)
+    model = Proposed_model(args, graph, graph_item)
 
-    # predictor = HeteroDotProductPredictor()
-    # model.to(device)
-    # opt = torch.optim.Adam(model.parameters(), lr = args.lr)
+    predictor = HeteroDotProductPredictor()
+    model.to(device)
+    opt = torch.optim.Adam(model.parameters(), lr = args.lr)
 
-    # stop_count = 0
-    # ndcg_val_best = 0
-    # ls_k = args.k
+    stop_count = 0
+    ndcg_val_best = 0
+    ls_k = args.k
 
-    # total_epoch = 0
-    # for epoch in range(args.epoch):
-    #     model.train()
-    #     graph_neg = construct_negative_graph(graph, ('user', 'play', 'game'))
-    #     h = model(graph, graph_item, graph_social)
+    total_epoch = 0
+    for epoch in range(args.epoch):
+        model.train()
+        graph_neg = construct_negative_graph(graph, ('user', 'play', 'game'))
+        h = model(graph, graph_item, graph_social)
 
-    #     score = predictor(graph, h, ('user', 'play', 'game'))
-    #     score_neg = predictor(graph_neg, h, ('user', 'play', 'game'))
-    #     loss = -(score - score_neg).sigmoid().log().sum()
-    #     logging.info("loss = {}".format(loss))
-    #     opt.zero_grad()
-    #     loss.backward()
-    #     opt.step()
-    #     total_epoch += 1
+        score = predictor(graph, h, ('user', 'play', 'game'))
+        score_neg = predictor(graph_neg, h, ('user', 'play', 'game'))
+        loss = -(score - score_neg).sigmoid().log().sum()
+        logging.info("loss = {}".format(loss))
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        total_epoch += 1
 
-    #     # score, h = model.forward_all(graph, 'play')
-    #     logging.info('Epoch {}'.format(epoch))
-    #     if total_epoch > 1:
-    #         model.eval()
-    #         logging.info("begin validation")
+        # score, h = model.forward_all(graph, 'play')
+        logging.info('Epoch {}'.format(epoch))
+        if total_epoch > 1:
+            model.eval()
+            logging.info("begin validation")
 
-    #         ndcg, _ = validate(train_mask, DataLoader.valid_data, h, ls_k)
+            ndcg, _ = validate(train_mask, DataLoader.valid_data, h, ls_k)
 
-    #         if ndcg > ndcg_val_best:
-    #             ndcg_val_best = ndcg
-    #             stop_count = 0
-    #             logging.info("begin test")
-    #             ndcg_test, test_result = validate(train_mask, DataLoader.test_data, h, ls_k)
-    #         else:
-    #             stop_count += 1
-    #             if stop_count > args.early_stop:
-    #                 logging.info('early stop')
-    #                 break
+            if ndcg > ndcg_val_best:
+                ndcg_val_best = ndcg
+                stop_count = 0
+                logging.info("begin test")
+                ndcg_test, test_result = validate(train_mask, DataLoader.test_data, h, ls_k)
+            else:
+                stop_count += 1
+                if stop_count > args.early_stop:
+                    logging.info('early stop')
+                    break
 
-    # logging.info('Final ndcg {}'.format(ndcg_test))
-    # logging.info(test_result)
+    logging.info('Final ndcg {}'.format(ndcg_test))
+    logging.info(test_result)
