@@ -107,8 +107,8 @@ class Dataloader_steam(DGLDataset):
         self.app_info = self.read_app_info(self.app_info_path)
 
         #* Add review sentiment scores of game textual reviews
-        logging.info("reading sentiment scores from {}".format(self.app_sentiment_scores_path))
-        self.app_sentiment_scores = self.read_sentiment_scores(self.app_sentiment_scores_path) 
+        logging.info("adding sentiment scores from {} to self.app_info".format(self.app_sentiment_scores_path))
+        self.add_sentiment_scores(self.app_sentiment_scores_path) 
 
         logging.info("reading publisher from {}".format(self.publisher_path))
         self.publisher = self.read_mapping(self.publisher_path)
@@ -233,7 +233,7 @@ class Dataloader_steam(DGLDataset):
         dic['feature_num'] = len(feature)
         return dic
 
-    def read_sentiment_scores(self, path):
+    def add_sentiment_scores(self, path):
         senti_scores = pd.read_pickle(path)
         
         # Get the mean/median/mode of each app's sentiment scores
