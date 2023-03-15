@@ -113,9 +113,11 @@ class Dataloader_item_graph(DGLDataset):
             game1 = df.index[row_idx]
             for col_idx in range(ctr, df.shape[1]):
                 game2 = df.columns[col_idx]
-                score = df.loc[game1, game2]
-                src.extend([game1, game2])
-                dst.extend([game2, game1])
-                similarity_scores.extend([score, score])
+                score = df[game1][game2]
+                mapped_game1 = self.app_id_mapping[str(game1)]
+                mapped_game2 = self.app_id_mapping[str(game2)]
+                src.extend([mapped_game1, mapped_game2])
+                dst.extend([mapped_game2, mapped_game1])
+                similarity_scores.extend([round(score,2), round(score,2)])
         
         return (torch.tensor(src), torch.tensor(dst)), torch.tensor(similarity_scores)
