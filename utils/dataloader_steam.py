@@ -12,7 +12,7 @@ from dgl.data import DGLDataset
 import pandas as pd
 
 class Dataloader_steam(DGLDataset):
-    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, device = 'cpu', name = 'steam'):
+    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, categorical_review_score_path, device = 'cpu', name = 'steam'):
         logging.info("steam dataloader init")
 
         self.args = args
@@ -24,6 +24,7 @@ class Dataloader_steam(DGLDataset):
         self.developer_path = developer_path
         self.publisher_path = publisher_path
         self.genres_path = genres_path
+        self.categorical_review_score_path = categorical_review_score_path
         self.device = device
         self.graph_path = self.root_path + '/graph.bin'     # graph.bin derived from dgl.save_graphs(...)
         self.game_path = self.root_path + '/train_game.txt'
@@ -104,6 +105,9 @@ class Dataloader_steam(DGLDataset):
         """
         logging.info("reading app info from {}".format(self.app_info_path))
         self.app_info = self.read_app_info(self.app_info_path)
+
+        logging.info("adding categorical (overall/recent) review scores from {} to self.app_info".format(self.categorical_review_score_path))
+        self.add_categorical_review_scores(self.categorical_review_score_path)
 
         logging.info("reading publisher from {}".format(self.publisher_path))
         self.publisher = self.read_mapping(self.publisher_path)
@@ -227,6 +231,33 @@ class Dataloader_steam(DGLDataset):
             dic[app_id] = feature
         dic['feature_num'] = len(feature)
         return dic
+
+    def add_categorical_review_scores(self, path):
+        df = pd.read_csv(path)
+
+        # Filter dataframe to only obtain necessary columns
+        df = df[["appids", "overall_review_score"]]
+
+        # Perform OHE on dataframe
+        df = pd.get_dummies(df, prefix="", prefix_sep="")
+
+        # Rearrange columns to easily remember order
+        cols = ["Overwhelmingly Negative", "Very Negative", "Negative", "Mostly Negative", "Mixed", "Mostly Positive", "Positive", "Very Positive", "Overwhelmingly Positive"]
+        df = df[cols]
+
+        # TODO: Check what happens if no review score
+
+        # Iterate through dataframe, add appid and score to dictionary
+        for i in tqdm(range(df)):
+            mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]
+            scores_feature = df.iloc[i, 1:].to_numpy()
+            scores_feature = scores_feature.astype(np.float64)
+            
+            # NOTE: Some apps do not have app_infos, need to do prior check
+            if mapped_appid in self.app_info:
+                # Append OHE'd score to self.app_info
+                self.app_info[mapped_appid] = np.append(self.app_info[mapped_appid], scores_feature)
+            
     
     def read_mapping(self, path):
         """

@@ -85,7 +85,7 @@ if __name__ == '__main__':
         device = 'cpu'
 
     # Path: current working directory
-    path = 'steam_data_tiny'
+    path = 'steam_data'
 
     user_id_path = path + '/users.txt'
     app_id_path = path + '/app_id.txt'
@@ -94,9 +94,10 @@ if __name__ == '__main__':
     developer_path = path + '/Games_Developers.txt'
     publisher_path = path + '/Games_Publishers.txt'
     genres_path = path + '/Games_Genres.txt'
+    categorical_review_score_path = path + '/review_overall_score.csv'
 
     # Build user-item and user-user heterogeneous
-    DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path)
+    DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, categorical_review_score_path)
 
     graph = DataLoader.graph
     # Build item-item heterogeneous graph
