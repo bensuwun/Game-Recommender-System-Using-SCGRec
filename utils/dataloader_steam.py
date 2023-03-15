@@ -106,8 +106,8 @@ class Dataloader_steam(DGLDataset):
         logging.info("reading app info from {}".format(self.app_info_path))
         self.app_info = self.read_app_info(self.app_info_path)
 
-        logging.info("adding categorical (overall/recent) review scores from {} to self.app_info".format(self.categorical_review_score_path))
-        self.add_categorical_review_scores(self.categorical_review_score_path)
+        logging.info("adding categorical (overall/recent) review scores from {}".format(self.categorical_review_score_path))
+        self.categorical_review_scores = self.read_categorical_review_scores(self.categorical_review_score_path)
 
         logging.info("reading publisher from {}".format(self.publisher_path))
         self.publisher = self.read_mapping(self.publisher_path)
@@ -176,6 +176,9 @@ class Dataloader_steam(DGLDataset):
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
 
+        #* Added categorical review scores
+        graph.nodes['game'].data['categorical_review'] = torch.tensor(list(self.categorical_review_scores))
+
         # Add dwelling time to edges with type "play" and "played by"
         graph.edges['play'].data['time'] = self.user_game[:, 2]
         graph.edges['played by'].data['time'] = self.user_game[:, 2]
@@ -232,7 +235,7 @@ class Dataloader_steam(DGLDataset):
         dic['feature_num'] = len(feature)
         return dic
 
-    def add_categorical_review_scores(self, path):
+    def read_categorical_review_scores(self, path):
         df = pd.read_csv(path)
 
         # Filter dataframe to only obtain necessary columns
@@ -242,21 +245,19 @@ class Dataloader_steam(DGLDataset):
         df = pd.get_dummies(df, prefix="", prefix_sep="")
 
         # Rearrange columns to easily remember order
-        cols = ["Overwhelmingly Negative", "Very Negative", "Negative", "Mostly Negative", "Mixed", "Mostly Positive", "Positive", "Very Positive", "Overwhelmingly Positive"]
+        cols = ["appids", "Overwhelmingly Negative", "Very Negative", "Negative", "Mostly Negative", "Mixed", "Mostly Positive", "Positive", "Very Positive", "Overwhelmingly Positive"]
         df = df[cols]
 
-        # TODO: Check what happens if no review score
-
-        # Iterate through dataframe, add appid and score to dictionary
-        for i in tqdm(range(df)):
+        # Map app ids, key = mapped app id | value = categorical review score
+        dic = {}
+        for i in range(df):
             mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]
             scores_feature = df.iloc[i, 1:].to_numpy()
             scores_feature = scores_feature.astype(np.float64)
             
-            # NOTE: Some apps do not have app_infos, need to do prior check
-            if mapped_appid in self.app_info:
-                # Append OHE'd score to self.app_info
-                self.app_info[mapped_appid] = np.append(self.app_info[mapped_appid], scores_feature)
+            dic[mapped_appid] = scores_feature
+
+        return dic
             
     
     def read_mapping(self, path):
