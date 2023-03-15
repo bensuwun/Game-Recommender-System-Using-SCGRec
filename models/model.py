@@ -19,11 +19,11 @@ class Proposed_model(nn.Module):
         self.hid_dim = args.embed_size
         self.layer_num = args.layers
 
-        # self.user_embedding = torch.nn.Parameter(torch.randn(graph.nodes('user').shape[0], self.hid_dim))
-        # self.item_embedding = torch.nn.Parameter(torch.randn(graph.nodes('game').shape[0], self.hid_dim))
+        self.user_embedding = torch.nn.Parameter(torch.randn(graph.nodes('user').shape[0], self.hid_dim))
+        self.item_embedding = torch.nn.Parameter(torch.randn(graph.nodes('game').shape[0], self.hid_dim))
 
-        self.user_embedding = torch.nn.Parameter(torch.load('./baselines/user_embedding.pt'))
-        self.item_embedding = torch.nn.Parameter(torch.load('./baselines/item_embedding.pt'))
+        # self.user_embedding = torch.nn.Parameter(torch.load('./baselines/user_embedding.pt'))
+        # self.item_embedding = torch.nn.Parameter(torch.load('./baselines/item_embedding.pt'))
 
         # Game Context Graph
         self.item_conv = SAGEConv(self.hid_dim, self.hid_dim, 'mean')
