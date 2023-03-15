@@ -177,7 +177,7 @@ class Dataloader_steam(DGLDataset):
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
 
         #* Added categorical review scores
-        graph.nodes['game'].data['categorical_review'] = torch.tensor(list(self.categorical_review_scores))
+        graph.nodes['game'].data['categorical_review'] = torch.tensor(list(self.categorical_review_scores.values()))
 
         # Add dwelling time to edges with type "play" and "played by"
         graph.edges['play'].data['time'] = self.user_game[:, 2]

@@ -94,7 +94,7 @@ if __name__ == '__main__':
     developer_path = path + '/Games_Developers.txt'
     publisher_path = path + '/Games_Publishers.txt'
     genres_path = path + '/Games_Genres.txt'
-    categorical_review_score_path = path + '/review_overall_score.csv'
+    categorical_review_score_path = path + '/overall_review_score_all.csv'
 
     # Build user-item and user-user heterogeneous
     DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, categorical_review_score_path)
