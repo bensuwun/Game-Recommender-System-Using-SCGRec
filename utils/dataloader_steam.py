@@ -177,7 +177,7 @@ class Dataloader_steam(DGLDataset):
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
 
         #* Add review sentiment scores of game textual reviews
-        graph.nodes['game'].data['senti_score'] = torch.tensor(self.sentiment_scores.values())
+        graph.nodes['game'].data['senti_score'] = torch.tensor(list(self.sentiment_scores.values()))
 
         # Add dwelling time to edges with type "play" and "played by"
         graph.edges['play'].data['time'] = self.user_game[:, 2]
