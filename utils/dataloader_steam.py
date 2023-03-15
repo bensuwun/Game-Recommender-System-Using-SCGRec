@@ -106,9 +106,8 @@ class Dataloader_steam(DGLDataset):
         logging.info("reading app info from {}".format(self.app_info_path))
         self.app_info = self.read_app_info(self.app_info_path)
 
-        #* Add review sentiment scores of game textual reviews
-        logging.info("adding sentiment scores from {} to self.app_info".format(self.app_sentiment_scores_path))
-        self.add_sentiment_scores(self.app_sentiment_scores_path) 
+        logging.info("reading sentiment scores from {} to self.app_info".format(self.app_sentiment_scores_path))
+        self.sentiment_scores = self.read_sentiment_scores(self.app_sentiment_scores_path) 
 
         logging.info("reading publisher from {}".format(self.publisher_path))
         self.publisher = self.read_mapping(self.publisher_path)
@@ -177,6 +176,9 @@ class Dataloader_steam(DGLDataset):
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
 
+        #* Add review sentiment scores of game textual reviews
+        graph.nodes['game'].data['senti_score'] = torch.tensor(self.sentiment_scores.values())
+
         # Add dwelling time to edges with type "play" and "played by"
         graph.edges['play'].data['time'] = self.user_game[:, 2]
         graph.edges['played by'].data['time'] = self.user_game[:, 2]
@@ -233,19 +235,27 @@ class Dataloader_steam(DGLDataset):
         dic['feature_num'] = len(feature)
         return dic
 
-    def add_sentiment_scores(self, path):
+    def read_sentiment_scores(self, path):
         senti_scores = pd.read_pickle(path)
-        
+        senti_scores.drop(columns=["index"], inplace=True)
+        senti_scores = senti_scores.set_index('appid')
+            
         # Get the mean/median/mode of each app's sentiment scores
         generalized_senti_scores = senti_scores.mean(axis = 1)
+        
+        # Compute overall mean of dataframe
+        overall_mean = generalized_senti_scores.mean()
+        
+        # Replace NaNs with overall mean
+        generalized_senti_scores.replace(to_replace = np.nan, value = overall_mean, inplace = True)
 
-        # Get the app's mapped ID, then append the mean/median/mode sentiment score to self.app_info
+        # Map app ids, key = mapped app id | value = sentiment score
+        dic = {}
         for appid, score in generalized_senti_scores.items():
             mapped_appid = self.app_id_mapping[str(appid)]
+            dic[mapped_appid] = score
 
-            # NOTE: Some apps do not have app_infos, need to do prior check
-            if mapped_appid in self.app_info:
-                self.app_info[mapped_appid] = np.append(self.app_info[mapped_appid], score)
+        return dic
             
     
     def read_mapping(self, path):
