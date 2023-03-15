@@ -12,7 +12,7 @@ class Dataloader_item_graph(DGLDataset):
     """
         Initializes the item graph or the game context graph (5.1 in Liangwei et al's paper.)
     """
-    def __init__(self, app_id_path, publisher_path, developer_path, genre_path, cos_similarity_path):
+    def __init__(self, graph, app_id_path, publisher_path, developer_path, genre_path, cos_similarity_path):
         self.app_id_path = app_id_path
         self.publisher_path = publisher_path
         self.developer_path = developer_path

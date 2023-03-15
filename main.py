@@ -101,7 +101,7 @@ if __name__ == '__main__':
 
     graph = DataLoader.graph
     # Build item-item heterogeneous graph
-    DataLoader_item = Dataloader_item_graph(app_id_path, publisher_path, developer_path, genres_path, cos_similarity_path)
+    DataLoader_item = Dataloader_item_graph(graph, app_id_path, publisher_path, developer_path, genres_path, cos_similarity_path)
 
     graph_item = DataLoader_item.graph
 
