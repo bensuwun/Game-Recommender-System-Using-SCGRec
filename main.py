@@ -11,8 +11,11 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+import utils.logs.log_config as log_config
 import logging
-logging.basicConfig(stream = sys.stdout, level = logging.INFO)
+logger = logging.getLogger(__name__)
+logger.addHandler(log_config.GetDefaultConsoleHandler())
+logger.addHandler(log_config.GetDefaultFileHandler())
 
 # Imports from utils directory
 from utils.parser import parse_args
@@ -56,9 +59,9 @@ def validate(train_mask, dic, h, ls_k):
         hit = torch.mean((result[:, :k].sum(1) > 0).float())
         precision = torch.mean(result[:, :k].mean(1))
 
-        logging_result = "For k = {}, ndcg = {}, recall = {}, hit = {}, precision = {}".format(k, ndcg, recall, hit, precision)
-        logging.info(logging_result)
-        res.append(logging_result)
+        logger_result = "For k = {}, ndcg = {}, recall = {}, hit = {}, precision = {}".format(k, ndcg, recall, hit, precision)
+        logger.info(logger_result)
+        res.append(logger_result)
     return ndcg, str(res)
 
 
@@ -137,30 +140,30 @@ if __name__ == '__main__':
         score = predictor(graph, h, ('user', 'play', 'game'))
         score_neg = predictor(graph_neg, h, ('user', 'play', 'game'))
         loss = -(score - score_neg).sigmoid().log().sum()
-        logging.info("loss = {}".format(loss))
+        logger.info("loss = {}".format(loss))
         opt.zero_grad()
         loss.backward()
         opt.step()
         total_epoch += 1
 
         # score, h = model.forward_all(graph, 'play')
-        logging.info('Epoch {}'.format(epoch))
+        logger.info('Epoch {}'.format(epoch))
         if total_epoch > 1:
             model.eval()
-            logging.info("begin validation")
+            logger.info("begin validation")
 
             ndcg, _ = validate(train_mask, DataLoader.valid_data, h, ls_k)
 
             if ndcg > ndcg_val_best:
                 ndcg_val_best = ndcg
                 stop_count = 0
-                logging.info("begin test")
+                logger.info("begin test")
                 ndcg_test, test_result = validate(train_mask, DataLoader.test_data, h, ls_k)
             else:
                 stop_count += 1
                 if stop_count > args.early_stop:
-                    logging.info('early stop')
+                    logger.info('early stop')
                     break
 
-    logging.info('Final ndcg {}'.format(ndcg_test))
-    logging.info(test_result)
+    logger.info('Final ndcg {}'.format(ndcg_test))
+    logger.info(test_result)
