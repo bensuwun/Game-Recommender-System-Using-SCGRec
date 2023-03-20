@@ -14,8 +14,7 @@ import torch.nn as nn
 import utils.logs.log_config as log_config
 import logging
 logger = logging.getLogger(__name__)
-logger.addHandler(log_config.GetDefaultConsoleHandler())
-logger.addHandler(log_config.GetDefaultFileHandler())
+log_config.SetDefaultConfig(logger)
 
 # Imports from utils directory
 from utils.parser import parse_args

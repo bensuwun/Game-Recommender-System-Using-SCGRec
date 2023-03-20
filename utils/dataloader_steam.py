@@ -7,8 +7,7 @@ import torch
 import utils.logs.log_config as log_config
 import logging
 logger = logging.getLogger(__name__)
-logger.addHandler(log_config.GetDefaultConsoleHandler())
-logger.addHandler(log_config.GetDefaultFileHandler())
+log_config.SetDefaultConfig(logger)
 
 import numpy as np
 import dgl

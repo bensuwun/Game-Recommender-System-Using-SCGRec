@@ -1,9 +1,9 @@
 import sys
 import torch
 import logging
+import utils.logs.log_config as log_config
 logger = logging.getLogger(__name__)
-logger.addHandler(log_config.GetDefaultConsoleHandler())
-logger.addHandler(log_config.GetDefaultFileHandler())
+log_config.SetDefaultConfig(logger)
 
 import dgl
 from dgl.data import DGLDataset
