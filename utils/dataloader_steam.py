@@ -149,11 +149,6 @@ class Dataloader_steam(DGLDataset):
 
             ('tag_type', 'tagged', 'game'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
 
-            #* added users' countries (if publicly available) to graph
-            ('user', 'location', 'country'): (torch.tensor(list(self.tag.keys())), torch.tensor(list(self.tag.values()))),
-
-            ('country', 'locationed', 'user'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
-
             ('user', 'play', 'game'): (self.user_game[:, 0].long(), self.user_game[:, 1].long()),
 
             ('game', 'played by', 'user'): (self.user_game[:, 1].long(), self.user_game[:, 0].long())
