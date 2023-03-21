@@ -4,8 +4,11 @@ from dgl.data.utils import save_graphs
 from tqdm import tqdm   # used to show progress bar when iterating
 from .NegativeSampler import NegativeSampler
 import torch
+import utils.logs.log_config as log_config
 import logging
-logging.basicConfig(stream = sys.stdout, level = logging.INFO)
+logger = logging.getLogger(__name__)
+log_config.SetDefaultConfig(logger)
+
 import numpy as np
 import dgl
 from dgl.data import DGLDataset
@@ -13,7 +16,7 @@ import pandas as pd
 
 class Dataloader_steam(DGLDataset):
     def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, app_sentiment_scores_path, device = 'cpu', name = 'steam'):
-        logging.info("steam dataloader init")
+        logger.info("steam dataloader init")
 
         self.args = args
         self.root_path = root_path
@@ -32,29 +35,29 @@ class Dataloader_steam(DGLDataset):
         self.valid_path = self.root_path + '/valid_data/valid_game.txt'
         self.test_path = self.root_path + '/test_data/test_game.txt'
 
-        logging.info("reading user id mapping from {}".format(self.user_id_path))
+        logger.info("reading user id mapping from {}".format(self.user_id_path))
         self.user_id_mapping = self.read_id_mapping(self.user_id_path)
-        logging.info("reading app id mapping from {}".format(self.app_id_path))
+        logger.info("reading app id mapping from {}".format(self.app_id_path))
         self.app_id_mapping = self.read_id_mapping(self.app_id_path)
 
-        logging.info("build valid data")
+        logger.info("build valid data")
         self.valid_data = self.build_valid_data(self.valid_path)
 
-        logging.info("build test data")
+        logger.info("build test data")
         self.test_data = self.build_valid_data(self.test_path)
 
         # If preprocessed graphs exist, load those (currently none)
         if os.path.exists(self.graph_path):
-            logging.info("loading preprocessed data")
+            logger.info("loading preprocessed data")
             self.graph = dgl.load_graphs(self.graph_path)
             self.graph = self.graph[0][0]
-            logging.info("reading user game information")
+            logger.info("reading user game information")
             self.dic_user_game = self.read_dic_user_game(self.game_path)
 
         else:
             self.process()
             # TODO: Uncomment when ready to save
-            #dgl.save_graphs(self.graph_path, self.graph)
+            dgl.save_graphs(self.graph_path, self.graph)
 
         self.dataloader = self.build_dataloader(self.args, self.graph)
 
@@ -103,25 +106,25 @@ class Dataloader_steam(DGLDataset):
             When the graph (graph.bin) has not been generated, this method is used to set the following: 
             (1) app_info, (2) publisher, (3) developer, (4) genre, (5) user_game, (6) dic_user_game, (7) friends, (8) graph
         """
-        logging.info("reading app info from {}".format(self.app_info_path))
+        logger.info("reading app info from {}".format(self.app_info_path))
         self.app_info = self.read_app_info(self.app_info_path)
 
-        logging.info("reading sentiment scores from {} to self.app_info".format(self.app_sentiment_scores_path))
+        logger.info("reading sentiment scores from {} to self.app_info".format(self.app_sentiment_scores_path))
         self.sentiment_scores = self.read_sentiment_scores(self.app_sentiment_scores_path) 
 
-        logging.info("reading publisher from {}".format(self.publisher_path))
+        logger.info("reading publisher from {}".format(self.publisher_path))
         self.publisher = self.read_mapping(self.publisher_path)
 
-        logging.info("reading developer from {}".format(self.developer_path))
+        logger.info("reading developer from {}".format(self.developer_path))
         self.developer = self.read_mapping(self.developer_path)
 
-        logging.info("reading genre from {}".format(self.genres_path))
+        logger.info("reading genre from {}".format(self.genres_path))
         self.genre = self.read_mapping(self.genres_path)
 
-        logging.info("reading user item play time from {}".format(self.game_path))
+        logger.info("reading user item play time from {}".format(self.game_path))
         self.user_game, self.dic_user_game = self.read_play_time_rank(self.game_path, self.time_path)
 
-        logging.info("reading friend list from {}".format(self.friends_path))
+        logger.info("reading friend list from {}".format(self.friends_path))
         self.friends = self.read_friends(self.friends_path)
 
         graph_data = {
@@ -171,7 +174,7 @@ class Dataloader_steam(DGLDataset):
             else:
                 count_without_feature += 1
                 ls_feature.append(feature_mean)
-        logging.info("total game number is {}, games without features number is {}".format(count_total,count_without_feature ))
+        logger.info("total game number is {}, games without features number is {}".format(count_total,count_without_feature ))
 
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
@@ -215,7 +218,7 @@ class Dataloader_steam(DGLDataset):
         column_index = [2]
         column_index.extend([i for i in range(4, column_num)])
 
-        logging.info("begin feature engineering")
+        logger.info("begin feature engineering")
         # Replace no metacritic scores to NaN, then replace NaN to mean of all metacritic scores
         df.iloc[:, 4].replace(to_replace = -1, value = np.nan, inplace = True)
         mean = df.iloc[:, 4].mean()
@@ -313,7 +316,7 @@ class Dataloader_steam(DGLDataset):
                             ls.append([user, game, 0])
                         else:
                             ls.append([user, game, float(time)])
-        logging.info('generate percentiles')
+        logger.info('generate percentiles')
         # Append new percentile column to each [user, game, dwelling time] list 
         ls = self.generate_percentile(ls)
 
@@ -405,7 +408,7 @@ class Dataloader_steam(DGLDataset):
                     ls.append([self.user_id_mapping[line[0]], self.app_id_mapping[line[1]], 0])
                 else:
                     ls.append([self.user_id_mapping[line[0]], self.app_id_mapping[line[1]], int(line[2])])
-        logging.info('generate percentiles')
+        logger.info('generate percentiles')
         ls = self.generate_percentile(ls)
         return torch.tensor(ls)
 
@@ -416,7 +419,7 @@ class Dataloader_steam(DGLDataset):
             :return: EdgeDataLoader object containing {inputNodes, sub_graph, neg_sub_graph, blocks}
         """
         # Create sampler that takes messages from all neighbors
-        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.layers, return_eids = False)
+        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.layers)
         
         # Generate unique ids for each edge with type 'play'
         train_id = torch.tensor([i for i in range(graph.edges(etype = 'play')[0].shape[0])], dtype = torch.long)
