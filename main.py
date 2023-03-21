@@ -22,6 +22,7 @@ from utils.dataloader_steam import Dataloader_steam
 from utils.dataloader_item_graph import Dataloader_item_graph
 
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 # Not found in repository, originally used for performance comparison 
 # from models.RGCNModel_steam_rank import RGCNModel_steam_rank
@@ -89,7 +90,7 @@ if __name__ == '__main__':
         device = 'cpu'
 
     # Path: current working directory
-    path = 'steam_data_tiny'
+    path = 'steam_data'
 
     user_id_path = path + '/users.txt'
     app_id_path = path + '/app_id.txt'
@@ -134,6 +135,7 @@ if __name__ == '__main__':
     ls_k = args.k
 
     total_epoch = 0
+    loss_values = []
     for epoch in range(args.epoch):
         model.train()
         graph_neg = construct_negative_graph(graph, ('user', 'play', 'game'))
@@ -141,7 +143,9 @@ if __name__ == '__main__':
 
         score = predictor(graph, h, ('user', 'play', 'game'))
         score_neg = predictor(graph_neg, h, ('user', 'play', 'game'))
+        # loss = tensor(loss, requires_grad=True)
         loss = -(score - score_neg).sigmoid().log().sum()
+        loss_values.append(loss.item())
         logger.info("loss = {}".format(loss))
         opt.zero_grad()
         loss.backward()
@@ -170,8 +174,16 @@ if __name__ == '__main__':
     logger.info('Final ndcg {}'.format(ndcg_test))
     logger.info(test_result)
 
+    # Files Prefix:  Month-Day-Year Hour.Min AM/PM
+    prefix = datetime.today().strftime('%m-%d-%Y %H.%M %p')
+
     # Save Model (Note: Create folder named "saved" inside models dir)
     if args.save_model == True:
-        # File Prefix:  Month-Day-Year Hour.Min AM/PM
-        prefix = datetime.today().strftime('%m-%d-%Y %H.%M %p')
         torch.save(model.state_dict(), f'models/saved/{prefix}_model.pt')
+
+    # Plot Loss Values
+    plt.plot(loss_values)
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.savefig(f'models/saved/{prefix}_loss_graph.png')
+    plt.show()

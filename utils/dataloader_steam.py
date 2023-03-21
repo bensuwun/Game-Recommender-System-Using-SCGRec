@@ -389,7 +389,7 @@ class Dataloader_steam(DGLDataset):
             :return: EdgeDataLoader object containing {inputNodes, sub_graph, neg_sub_graph, blocks}
         """
         # Create sampler that takes messages from all neighbors
-        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.layers, return_eids = False)
+        sampler = dgl.dataloading.MultiLayerFullNeighborSampler(args.layers)
         
         # Generate unique ids for each edge with type 'play'
         train_id = torch.tensor([i for i in range(graph.edges(etype = 'play')[0].shape[0])], dtype = torch.long)
