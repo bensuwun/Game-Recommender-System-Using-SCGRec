@@ -36,7 +36,12 @@ def parse_args():
     # TODO: Determine either w_context or w_self
     parser.add_argument('--item_g', default = 0.1, type = float,
                         help = 'hyper-parameter for aggregation weight')
-
+    parser.add_argument('--save_model', default = True, type = bool,
+                        help = 'determines if proposed model is saved or not')
+    parser.add_argument('--test_game', default = None, type = str,
+                        help = 'File name + extension of user-games text file (e.g. test_game.txt). Paired with args.test_time')
+    parser.add_argument('--test_time', default = None, type = str,
+                        help = 'File name + extension of user-dwelling time text file (e.g. test_time.txt). Paired with args.test_game')
     args = parser.parse_args()
     return args
 
