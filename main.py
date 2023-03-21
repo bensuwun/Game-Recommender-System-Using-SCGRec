@@ -21,6 +21,8 @@ from utils.parser import parse_args
 from utils.dataloader_steam import Dataloader_steam
 from utils.dataloader_item_graph import Dataloader_item_graph
 
+from datetime import datetime
+
 # Not found in repository, originally used for performance comparison 
 # from models.RGCNModel_steam_rank import RGCNModel_steam_rank
 
@@ -112,6 +114,7 @@ if __name__ == '__main__':
     graph.update_all(fn.copy_edge('percentile', 'm'), fn.sum('m', 'total'), etype = 'played by')
     graph.apply_edges(func = fn.e_div_v('percentile', 'total', 'weight'), etype = 'played by')
 
+    # Load validation set
     valid_user = list(DataLoader.valid_data.keys())
     train_mask = torch.zeros(len(valid_user), graph.num_nodes('game'))
     for i in range(len(valid_user)):
@@ -166,3 +169,9 @@ if __name__ == '__main__':
 
     logger.info('Final ndcg {}'.format(ndcg_test))
     logger.info(test_result)
+
+    # Save Model (Note: Create folder named "saved" inside models dir)
+    if args.save_model == True:
+        # File Prefix:  Month-Day-Year Hour.Min AM/PM
+        prefix = datetime.today().strftime('%m-%d-%Y %H.%M %p')
+        torch.save(model.state_dict(), f'models/saved/{prefix}_model.pt')
