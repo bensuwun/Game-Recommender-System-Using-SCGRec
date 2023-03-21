@@ -56,7 +56,7 @@ class Dataloader_steam(DGLDataset):
         else:
             self.process()
             # TODO: Uncomment when ready to save
-            #dgl.save_graphs(self.graph_path, self.graph)
+            dgl.save_graphs(self.graph_path, self.graph)
 
         self.dataloader = self.build_dataloader(self.args, self.graph)
 
