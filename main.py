@@ -148,7 +148,7 @@ if __name__ == '__main__':
     for epoch in range(args.epoch):
         model.train()
         graph_neg = construct_negative_graph(graph, ('user', 'play', 'game'))
-        h = model(graph, graph_item, graph_social)
+        h = model.forward(graph, graph_item, graph_social)
 
         score = predictor(graph, h, ('user', 'play', 'game'))
         score_neg = predictor(graph_neg, h, ('user', 'play', 'game'))
