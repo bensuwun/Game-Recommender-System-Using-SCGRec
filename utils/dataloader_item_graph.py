@@ -2,7 +2,10 @@ import sys
 import torch
 import pandas
 import logging
-logging.basicConfig(stream = sys.stdout, level = logging.INFO)
+import utils.logs.log_config as log_config
+logger = logging.getLogger(__name__)
+log_config.SetDefaultConfig(logger)
+
 import dgl
 import pandas as pd
 from tqdm import tqdm

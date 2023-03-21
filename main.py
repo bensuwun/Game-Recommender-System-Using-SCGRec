@@ -11,13 +11,18 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+import utils.logs.log_config as log_config
 import logging
-logging.basicConfig(stream = sys.stdout, level = logging.INFO)
+logger = logging.getLogger(__name__)
+log_config.SetDefaultConfig(logger)
 
 # Imports from utils directory
 from utils.parser import parse_args
 from utils.dataloader_steam import Dataloader_steam
 from utils.dataloader_item_graph import Dataloader_item_graph
+
+from datetime import datetime
+import matplotlib.pyplot as plt
 
 # Not found in repository, originally used for performance comparison 
 # from models.RGCNModel_steam_rank import RGCNModel_steam_rank
@@ -56,9 +61,9 @@ def validate(train_mask, dic, h, ls_k):
         hit = torch.mean((result[:, :k].sum(1) > 0).float())
         precision = torch.mean(result[:, :k].mean(1))
 
-        logging_result = "For k = {}, ndcg = {}, recall = {}, hit = {}, precision = {}".format(k, ndcg, recall, hit, precision)
-        logging.info(logging_result)
-        res.append(logging_result)
+        logger_result = "For k = {}, ndcg = {}, recall = {}, hit = {}, precision = {}".format(k, ndcg, recall, hit, precision)
+        logger.info(logger_result)
+        res.append(logger_result)
     return ndcg, str(res)
 
 
@@ -111,6 +116,7 @@ if __name__ == '__main__':
     graph.update_all(fn.copy_edge('percentile', 'm'), fn.sum('m', 'total'), etype = 'played by')
     graph.apply_edges(func = fn.e_div_v('percentile', 'total', 'weight'), etype = 'played by')
 
+    # Load validation set
     valid_user = list(DataLoader.valid_data.keys())
     train_mask = torch.zeros(len(valid_user), graph.num_nodes('game'))
     for i in range(len(valid_user)):
@@ -130,6 +136,7 @@ if __name__ == '__main__':
     ls_k = args.k
 
     total_epoch = 0
+    loss_values = []
     for epoch in range(args.epoch):
         model.train()
         graph_neg = construct_negative_graph(graph, ('user', 'play', 'game'))
@@ -137,31 +144,47 @@ if __name__ == '__main__':
 
         score = predictor(graph, h, ('user', 'play', 'game'))
         score_neg = predictor(graph_neg, h, ('user', 'play', 'game'))
+        # loss = tensor(loss, requires_grad=True)
         loss = -(score - score_neg).sigmoid().log().sum()
-        logging.info("loss = {}".format(loss))
+        loss_values.append(loss.item())
+        logger.info("loss = {}".format(loss))
         opt.zero_grad()
         loss.backward()
         opt.step()
         total_epoch += 1
 
         # score, h = model.forward_all(graph, 'play')
-        logging.info('Epoch {}'.format(epoch))
+        logger.info('Epoch {}'.format(epoch))
         if total_epoch > 1:
             model.eval()
-            logging.info("begin validation")
+            logger.info("begin validation")
 
             ndcg, _ = validate(train_mask, DataLoader.valid_data, h, ls_k)
 
             if ndcg > ndcg_val_best:
                 ndcg_val_best = ndcg
                 stop_count = 0
-                logging.info("begin test")
+                logger.info("begin test")
                 ndcg_test, test_result = validate(train_mask, DataLoader.test_data, h, ls_k)
             else:
                 stop_count += 1
                 if stop_count > args.early_stop:
-                    logging.info('early stop')
+                    logger.info('early stop')
                     break
 
-    logging.info('Final ndcg {}'.format(ndcg_test))
-    logging.info(test_result)
+    logger.info('Final ndcg {}'.format(ndcg_test))
+    logger.info(test_result)
+
+    # Files Prefix:  Month-Day-Year Hour.Min AM/PM
+    prefix = datetime.today().strftime('%m-%d-%Y %H.%M %p')
+
+    # Save Model (Note: Create folder named "saved" inside models dir)
+    if args.save_model == True:
+        torch.save(model.state_dict(), f'models/saved/{prefix}_model.pt')
+
+    # Plot Loss Values
+    plt.plot(loss_values)
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.savefig(f'models/saved/{prefix}_loss_graph.png')
+    plt.show()
