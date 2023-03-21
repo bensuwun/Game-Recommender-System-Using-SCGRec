@@ -7,6 +7,7 @@ def SetDefaultConfig(logger):
     AddDefaultConsoleHandler(logger)
     AddDefaultFileHandler(logger)
     logger.setLevel(logging.DEBUG)
+    logger.propagate = False
 
 def AddDefaultConsoleHandler(logger):
     console_handler = logging.StreamHandler()
