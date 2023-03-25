@@ -15,7 +15,7 @@ from dgl.data import DGLDataset
 import pandas as pd
 
 class Dataloader_steam(DGLDataset):
-    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, tags_path, country_path, device = 'cpu', name = 'steam'):
+    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, tags_path, device = 'cpu', name = 'steam'):
         logger.info("steam dataloader init")
 
         self.args = args
@@ -28,7 +28,6 @@ class Dataloader_steam(DGLDataset):
         self.publisher_path = publisher_path
         self.genres_path = genres_path
         self.tags_path = tags_path
-        self.country_path = country_path
         self.device = device
         self.graph_path = self.root_path + '/graph.bin'     # graph.bin derived from dgl.save_graphs(...)
         self.game_path = self.root_path + '/train_game.txt'
@@ -121,9 +120,6 @@ class Dataloader_steam(DGLDataset):
 
         logger.info("reading tag from {}".format(self.tags_path))
         self.tag = self.read_mapping(self.tags_path)
-
-        logger.info("reading user country code from {}".format(self.country_path))
-        self.country = self.read_country_mapping(self.country_path)
 
         logger.info("reading user item play time from {}".format(self.game_path))
         self.user_game, self.dic_user_game = self.read_play_time_rank(self.game_path, self.time_path)
@@ -269,31 +265,6 @@ class Dataloader_steam(DGLDataset):
         for key in mapping:
             mapping[key] = mapping_value2id[mapping[key]]
         # print(mapping)
-        return mapping
-
-    def read_country_mapping(self, path):
-        """
-            Used to read the user_country txt file. Similar to read_mapping but checks user ID mapping instead of app ID mapping.
-
-            :return: Dictionary, where keys = mapped userIDs, values = mapped country code ID
-        """
-        mapping = {}
-        with open(path, 'r') as f:
-            for line in f:
-                line = line.strip().split(',')
-                # If user ID not yet in mapping, only create nodes for users with countries
-                if line[0] not in mapping:
-                    if line[1] != "None":
-                        mapping[self.user_id_mapping[line[0]]] = line[1]
-        mapping_value2id = {}
-        count = 0
-        # Map values too (e.g. Valve = 0, SEGA = 1)
-        for value in mapping.values():
-            if value not in mapping_value2id:
-                mapping_value2id[value] = count
-                count += 1
-        for key in mapping:
-            mapping[key] = mapping_value2id[mapping[key]]
         return mapping
     
     def read_play_time_rank(self, game_path, time_path):
