@@ -15,7 +15,7 @@ from dgl.data import DGLDataset
 import pandas as pd
 
 class Dataloader_steam(DGLDataset):
-    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, app_sentiment_scores_path, device = 'cpu', name = 'steam'):
+    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path, app_sentiment_scores_path, device = 'cpu', name = 'steam'):
         logger.info("steam dataloader init")
 
         self.args = args
@@ -28,6 +28,9 @@ class Dataloader_steam(DGLDataset):
         self.publisher_path = publisher_path
         self.genres_path = genres_path
         self.app_sentiment_scores_path = app_sentiment_scores_path
+        self.categorical_review_score_path = categorical_review_score_path
+        self.country_path = country_path
+        self.tags_path = tags_path
         self.device = device
         self.graph_path = self.root_path + '/graph.bin'     # graph.bin derived from dgl.save_graphs(...)
         self.game_path = self.root_path + '/train_game.txt'
@@ -112,6 +115,9 @@ class Dataloader_steam(DGLDataset):
         logger.info("reading sentiment scores from {} to self.app_info".format(self.app_sentiment_scores_path))
         self.sentiment_scores = self.read_sentiment_scores(self.app_sentiment_scores_path) 
 
+        logger.info("adding categorical (overall/recent) review scores from {}".format(self.categorical_review_score_path))
+        self.categorical_review_scores = self.read_categorical_review_scores(self.categorical_review_score_path)
+
         logger.info("reading publisher from {}".format(self.publisher_path))
         self.publisher = self.read_mapping(self.publisher_path)
 
@@ -120,6 +126,12 @@ class Dataloader_steam(DGLDataset):
 
         logger.info("reading genre from {}".format(self.genres_path))
         self.genre = self.read_mapping(self.genres_path)
+
+        logger.info("reading user country code from {}".format(self.country_path))
+        self.country = self.read_country_mapping(self.country_path)
+        
+        logger.info("reading tag from {}".format(self.tags_path))
+        self.tag = self.read_mapping(self.tags_path)
 
         logger.info("reading user item play time from {}".format(self.game_path))
         self.user_game, self.dic_user_game = self.read_play_time_rank(self.game_path, self.time_path)
@@ -142,6 +154,16 @@ class Dataloader_steam(DGLDataset):
             ('game', 'genre', 'type'): (torch.tensor(list(self.genre.keys())), torch.tensor(list(self.genre.values()))),
 
             ('type', 'genred', 'game'): (torch.tensor(list(self.genre.values())), torch.tensor(list(self.genre.keys()))),
+            
+            #* added users' countries (if publicly available) to graph
+            ('user', 'location', 'country'): (torch.tensor(list(self.country.keys())), torch.tensor(list(self.country.values()))),
+
+            ('country', 'locationed', 'user'): (torch.tensor(list(self.country.values())), torch.tensor(list(self.country.keys()))),
+            
+            #* added tags to graph
+            ('game', 'tag', 'tag_type'): (torch.tensor(list(self.tag.keys())), torch.tensor(list(self.tag.values()))),
+
+            ('tag_type', 'tagged', 'game'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
 
             ('user', 'play', 'game'): (self.user_game[:, 0].long(), self.user_game[:, 1].long()),
 
@@ -182,7 +204,10 @@ class Dataloader_steam(DGLDataset):
         #* Add review sentiment scores of game textual reviews
         graph.nodes['game'].data['senti_score'] = torch.tensor(list(self.sentiment_scores.values()))
 
-        # Add dwelling time to edges with type "play" and "played by"
+        #* Added categorical review scores
+        graph.nodes['game'].data['categorical_review'] = torch.tensor(list(self.categorical_review_scores.values()))
+
+        # Add dwelling time to edges with type "play" and "played by" (1D Tensor Array consisting of dwelling time)
         graph.edges['play'].data['time'] = self.user_game[:, 2]
         graph.edges['played by'].data['time'] = self.user_game[:, 2]
 
@@ -257,6 +282,30 @@ class Dataloader_steam(DGLDataset):
         for appid, score in generalized_senti_scores.items():
             mapped_appid = self.app_id_mapping[str(appid)]
             dic[mapped_appid] = score
+            
+        return dic
+      
+    def read_categorical_review_scores(self, path):
+        df = pd.read_csv(path)
+
+        # Filter dataframe to only obtain necessary columns
+        df = df[["appids", "overall_review_score"]]
+
+        # Perform OHE on dataframe
+        df = pd.get_dummies(df, prefix="", prefix_sep="")
+
+        # Rearrange columns to easily remember order
+        cols = ["appids", "Overwhelmingly Negative", "Very Negative", "Negative", "Mostly Negative", "Mixed", "Mostly Positive", "Positive", "Very Positive", "Overwhelmingly Positive"]
+        df = df[cols]
+
+        # Map app ids, key = mapped app id | value = categorical review score
+        dic = {}
+        for i in range(df):
+            mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]
+            scores_feature = df.iloc[i, 1:].to_numpy()
+            scores_feature = scores_feature.astype(np.float64)
+            
+            dic[mapped_appid] = scores_feature
 
         return dic
             
@@ -286,6 +335,30 @@ class Dataloader_steam(DGLDataset):
         for key in mapping:
             mapping[key] = mapping_value2id[mapping[key]]
         # print(mapping)
+        return mapping
+        
+    def read_country_mapping(self, path):
+        """
+            Used to read the user_country txt file. Similar to read_mapping but checks user ID mapping instead of app ID mapping.
+            :return: Dictionary, where keys = mapped userIDs, values = mapped country code ID
+        """
+        mapping = {}
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip().split(',')
+                # If user ID not yet in mapping, only create nodes for users with countries
+                if line[0] not in mapping:
+                    if line[1] != "None":
+                        mapping[self.user_id_mapping[line[0]]] = line[1]
+        mapping_value2id = {}
+        count = 0
+        # Map values too (e.g. Valve = 0, SEGA = 1)
+        for value in mapping.values():
+            if value not in mapping_value2id:
+                mapping_value2id[value] = count
+                count += 1
+        for key in mapping:
+            mapping[key] = mapping_value2id[mapping[key]]
         return mapping
     
     def read_play_time_rank(self, game_path, time_path):
