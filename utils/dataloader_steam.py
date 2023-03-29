@@ -15,7 +15,7 @@ from dgl.data import DGLDataset
 import pandas as pd
 
 class Dataloader_steam(DGLDataset):
-    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, device = 'cpu', name = 'steam'):
+    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path, device = 'cpu', name = 'steam'):
         logger.info("steam dataloader init")
 
         self.args = args
@@ -27,6 +27,7 @@ class Dataloader_steam(DGLDataset):
         self.developer_path = developer_path
         self.publisher_path = publisher_path
         self.genres_path = genres_path
+        self.categorical_review_score_path = categorical_review_score_path
         self.country_path = country_path
         self.tags_path = tags_path
         self.device = device
@@ -109,6 +110,9 @@ class Dataloader_steam(DGLDataset):
         """
         logger.info("reading app info from {}".format(self.app_info_path))
         self.app_info = self.read_app_info(self.app_info_path)
+
+        logger.info("adding categorical (overall/recent) review scores from {}".format(self.categorical_review_score_path))
+        self.categorical_review_scores = self.read_categorical_review_scores(self.categorical_review_score_path)
 
         logger.info("reading publisher from {}".format(self.publisher_path))
         self.publisher = self.read_mapping(self.publisher_path)
@@ -193,6 +197,9 @@ class Dataloader_steam(DGLDataset):
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
 
+        #* Added categorical review scores
+        graph.nodes['game'].data['categorical_review'] = torch.tensor(list(self.categorical_review_scores.values()))
+
         # Add dwelling time to edges with type "play" and "played by" (1D Tensor Array consisting of dwelling time)
         graph.edges['play'].data['time'] = self.user_game[:, 2]
         graph.edges['played by'].data['time'] = self.user_game[:, 2]
@@ -248,6 +255,31 @@ class Dataloader_steam(DGLDataset):
             dic[app_id] = feature
         dic['feature_num'] = len(feature)
         return dic
+
+    def read_categorical_review_scores(self, path):
+        df = pd.read_csv(path)
+
+        # Filter dataframe to only obtain necessary columns
+        df = df[["appids", "overall_review_score"]]
+
+        # Perform OHE on dataframe
+        df = pd.get_dummies(df, prefix="", prefix_sep="")
+
+        # Rearrange columns to easily remember order
+        cols = ["appids", "Overwhelmingly Negative", "Very Negative", "Negative", "Mostly Negative", "Mixed", "Mostly Positive", "Positive", "Very Positive", "Overwhelmingly Positive"]
+        df = df[cols]
+
+        # Map app ids, key = mapped app id | value = categorical review score
+        dic = {}
+        for i in range(df):
+            mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]
+            scores_feature = df.iloc[i, 1:].to_numpy()
+            scores_feature = scores_feature.astype(np.float64)
+            
+            dic[mapped_appid] = scores_feature
+
+        return dic
+            
     
     def read_mapping(self, path):
         """
