@@ -12,11 +12,12 @@ class Dataloader_item_graph(DGLDataset):
     """
         Initializes the item graph or the game context graph (5.1 in Liangwei et al's paper.)
     """
-    def __init__(self, graph, app_id_path, publisher_path, developer_path, genre_path):
+    def __init__(self, graph, app_id_path, publisher_path, developer_path, genre_path, tags_path):
         self.app_id_path = app_id_path
         self.publisher_path = publisher_path
         self.developer_path = developer_path
         self.genre_path = genre_path
+        self.tags_path = tags_path
 
         # Retrieve co-features of games
         logging.info("reading item graph")
@@ -24,12 +25,14 @@ class Dataloader_item_graph(DGLDataset):
         self.publisher = self.read_mapping(self.publisher_path)
         self.developer = self.read_mapping(self.developer_path)
         self.genre = self.read_mapping(self.genre_path)
+        self.tag = self.read_mapping(self.tags_path)
 
         # Initialize game context graph from co-features
         graph_data = {
             ('game', 'co_publisher', 'game'): self.publisher,
             ('game', 'co_developer', 'game'): self.developer,
-            ('game', 'co_genre', 'game'): self.genre
+            ('game', 'co_genre', 'game'): self.genre,
+            ('game', 'co_tag', 'game'): self.tag    # added tags
         }
         self.graph = dgl.heterograph(graph_data)
 

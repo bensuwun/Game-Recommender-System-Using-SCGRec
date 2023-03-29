@@ -15,7 +15,7 @@ from dgl.data import DGLDataset
 import pandas as pd
 
 class Dataloader_steam(DGLDataset):
-    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, device = 'cpu', name = 'steam'):
+    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, tags_path, device = 'cpu', name = 'steam'):
         logger.info("steam dataloader init")
 
         self.args = args
@@ -27,6 +27,7 @@ class Dataloader_steam(DGLDataset):
         self.developer_path = developer_path
         self.publisher_path = publisher_path
         self.genres_path = genres_path
+        self.tags_path = tags_path
         self.device = device
         self.graph_path = self.root_path + '/graph.bin'     # graph.bin derived from dgl.save_graphs(...)
         self.game_path = self.root_path + '/train_game.txt'
@@ -117,6 +118,9 @@ class Dataloader_steam(DGLDataset):
         logger.info("reading genre from {}".format(self.genres_path))
         self.genre = self.read_mapping(self.genres_path)
 
+        logger.info("reading tag from {}".format(self.tags_path))
+        self.tag = self.read_mapping(self.tags_path)
+
         logger.info("reading user item play time from {}".format(self.game_path))
         self.user_game, self.dic_user_game = self.read_play_time_rank(self.game_path, self.time_path)
 
@@ -138,6 +142,11 @@ class Dataloader_steam(DGLDataset):
             ('game', 'genre', 'type'): (torch.tensor(list(self.genre.keys())), torch.tensor(list(self.genre.values()))),
 
             ('type', 'genred', 'game'): (torch.tensor(list(self.genre.values())), torch.tensor(list(self.genre.keys()))),
+
+            #* added tags to graph
+            ('game', 'tag', 'tag_type'): (torch.tensor(list(self.tag.keys())), torch.tensor(list(self.tag.values()))),
+
+            ('tag_type', 'tagged', 'game'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
 
             ('user', 'play', 'game'): (self.user_game[:, 0].long(), self.user_game[:, 1].long()),
 
@@ -175,7 +184,7 @@ class Dataloader_steam(DGLDataset):
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
 
-        # Add dwelling time to edges with type "play" and "played by"
+        # Add dwelling time to edges with type "play" and "played by" (1D Tensor Array consisting of dwelling time)
         graph.edges['play'].data['time'] = self.user_game[:, 2]
         graph.edges['played by'].data['time'] = self.user_game[:, 2]
 
