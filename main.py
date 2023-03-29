@@ -106,6 +106,7 @@ if __name__ == '__main__':
     developer_path = path + '/Games_Developers.txt'
     publisher_path = path + '/Games_Publishers.txt'
     genres_path = path + '/Games_Genres.txt'
+    cos_similarity_path = path + '/cosine_description.pkl'
     categorical_review_score_path = path + '/overall_review_score_all.csv'
     country_path = path + '/user_country.txt'
     tags_path = path + '/Games_Tags.txt'
@@ -115,7 +116,7 @@ if __name__ == '__main__':
 
     graph = DataLoader.graph
     # Build item-item heterogeneous graph
-    DataLoader_item = Dataloader_item_graph(graph, app_id_path, publisher_path, developer_path, genres_path, tags_path)
+    DataLoader_item = Dataloader_item_graph(graph, app_id_path, publisher_path, developer_path, genres_path, tags_path, cos_similarity_path)
 
     graph_item = DataLoader_item.graph
 
