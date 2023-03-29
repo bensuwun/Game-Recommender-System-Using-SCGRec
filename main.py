@@ -106,13 +106,14 @@ if __name__ == '__main__':
     developer_path = path + '/Games_Developers.txt'
     publisher_path = path + '/Games_Publishers.txt'
     genres_path = path + '/Games_Genres.txt'
+    app_sentiments_path = path + '/sentiment_scores.pkl'
     cos_similarity_path = path + '/cosine_description.pkl'
     categorical_review_score_path = path + '/overall_review_score_all.csv'
     country_path = path + '/user_country.txt'
     tags_path = path + '/Games_Tags.txt'
 
     # Build user-item and user-user heterogeneous
-    DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path)
+    DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path, app_sentiments_path)
 
     graph = DataLoader.graph
     # Build item-item heterogeneous graph

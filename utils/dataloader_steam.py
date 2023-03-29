@@ -15,7 +15,7 @@ from dgl.data import DGLDataset
 import pandas as pd
 
 class Dataloader_steam(DGLDataset):
-    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path, device = 'cpu', name = 'steam'):
+    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path, app_sentiment_scores_path, device = 'cpu', name = 'steam'):
         logger.info("steam dataloader init")
 
         self.args = args
@@ -27,6 +27,7 @@ class Dataloader_steam(DGLDataset):
         self.developer_path = developer_path
         self.publisher_path = publisher_path
         self.genres_path = genres_path
+        self.app_sentiment_scores_path = app_sentiment_scores_path
         self.categorical_review_score_path = categorical_review_score_path
         self.country_path = country_path
         self.tags_path = tags_path
@@ -110,6 +111,9 @@ class Dataloader_steam(DGLDataset):
         """
         logger.info("reading app info from {}".format(self.app_info_path))
         self.app_info = self.read_app_info(self.app_info_path)
+
+        logger.info("reading sentiment scores from {} to self.app_info".format(self.app_sentiment_scores_path))
+        self.sentiment_scores = self.read_sentiment_scores(self.app_sentiment_scores_path) 
 
         logger.info("adding categorical (overall/recent) review scores from {}".format(self.categorical_review_score_path))
         self.categorical_review_scores = self.read_categorical_review_scores(self.categorical_review_score_path)
@@ -197,6 +201,9 @@ class Dataloader_steam(DGLDataset):
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
 
+        #* Add review sentiment scores of game textual reviews
+        graph.nodes['game'].data['senti_score'] = torch.tensor(list(self.sentiment_scores.values()))
+
         #* Added categorical review scores
         graph.nodes['game'].data['categorical_review'] = torch.tensor(list(self.categorical_review_scores.values()))
 
@@ -256,6 +263,28 @@ class Dataloader_steam(DGLDataset):
         dic['feature_num'] = len(feature)
         return dic
 
+    def read_sentiment_scores(self, path):
+        senti_scores = pd.read_pickle(path)
+        senti_scores.drop(columns=["index"], inplace=True)
+        senti_scores = senti_scores.set_index('appid')
+            
+        # Get the mean/median/mode of each app's sentiment scores
+        generalized_senti_scores = senti_scores.mean(axis = 1)
+        
+        # Compute overall mean of dataframe
+        overall_mean = generalized_senti_scores.mean()
+        
+        # Replace NaNs with overall mean
+        generalized_senti_scores.replace(to_replace = np.nan, value = overall_mean, inplace = True)
+
+        # Map app ids, key = mapped app id | value = sentiment score
+        dic = {}
+        for appid, score in generalized_senti_scores.items():
+            mapped_appid = self.app_id_mapping[str(appid)]
+            dic[mapped_appid] = score
+            
+        return dic
+      
     def read_categorical_review_scores(self, path):
         df = pd.read_csv(path)
 
