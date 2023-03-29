@@ -15,7 +15,7 @@ class Dataloader_item_graph(DGLDataset):
     """
         Initializes the item graph or the game context graph (5.1 in Liangwei et al's paper.)
     """
-    def __init__(self, graph, app_id_path, publisher_path, developer_path, genre_path, cos_similarity_path):
+    def __init__(self, graph, app_id_path, publisher_path, developer_path, genre_path, tags_path, cos_similarity_path):
         self.app_id_path = app_id_path
         self.publisher_path = publisher_path
         self.developer_path = developer_path
@@ -29,6 +29,7 @@ class Dataloader_item_graph(DGLDataset):
         self.developer = self.read_mapping(self.developer_path)
         self.genre = self.read_mapping(self.genre_path)
         self.similarity_score_nodes, self.similarity_scores = self.read_cos_similarity(self.cos_similarity_path)
+        self.tag = self.read_mapping(self.tags_path)
 
         # Initialize game context graph from co-features
         graph_data = {
@@ -37,6 +38,8 @@ class Dataloader_item_graph(DGLDataset):
             ('game', 'co_genre', 'game'): self.genre,
             #* Added similarity score
             ('game', 'desc_similarity', 'game'): self.similarity_score_nodes
+            #* added tags
+            ('game', 'co_tag', 'game'): self.tag
         }
         self.graph = dgl.heterograph(graph_data)
 
