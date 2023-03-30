@@ -15,7 +15,7 @@ from dgl.data import DGLDataset
 import pandas as pd
 
 class Dataloader_steam(DGLDataset):
-    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path, app_sentiment_scores_path, device = 'cpu', name = 'steam'):
+    def __init__(self, args, root_path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, categorical_review_score_path, device = 'cpu', name = 'steam'):
         logger.info("steam dataloader init")
 
         self.args = args
@@ -27,10 +27,7 @@ class Dataloader_steam(DGLDataset):
         self.developer_path = developer_path
         self.publisher_path = publisher_path
         self.genres_path = genres_path
-        self.app_sentiment_scores_path = app_sentiment_scores_path
         self.categorical_review_score_path = categorical_review_score_path
-        self.country_path = country_path
-        self.tags_path = tags_path
         self.device = device
         self.graph_path = self.root_path + '/graph.bin'     # graph.bin derived from dgl.save_graphs(...)
         self.game_path = self.root_path + '/train_game.txt'
@@ -112,9 +109,6 @@ class Dataloader_steam(DGLDataset):
         logger.info("reading app info from {}".format(self.app_info_path))
         self.app_info = self.read_app_info(self.app_info_path)
 
-        logger.info("reading sentiment scores from {} to self.app_info".format(self.app_sentiment_scores_path))
-        self.sentiment_scores = self.read_sentiment_scores(self.app_sentiment_scores_path) 
-
         logger.info("adding categorical (overall/recent) review scores from {}".format(self.categorical_review_score_path))
         self.categorical_review_scores = self.read_categorical_review_scores(self.categorical_review_score_path)
 
@@ -126,12 +120,6 @@ class Dataloader_steam(DGLDataset):
 
         logger.info("reading genre from {}".format(self.genres_path))
         self.genre = self.read_mapping(self.genres_path)
-
-        logger.info("reading user country code from {}".format(self.country_path))
-        self.country = self.read_country_mapping(self.country_path)
-        
-        logger.info("reading tag from {}".format(self.tags_path))
-        self.tag = self.read_mapping(self.tags_path)
 
         logger.info("reading user item play time from {}".format(self.game_path))
         self.user_game, self.dic_user_game = self.read_play_time_rank(self.game_path, self.time_path)
@@ -154,16 +142,6 @@ class Dataloader_steam(DGLDataset):
             ('game', 'genre', 'type'): (torch.tensor(list(self.genre.keys())), torch.tensor(list(self.genre.values()))),
 
             ('type', 'genred', 'game'): (torch.tensor(list(self.genre.values())), torch.tensor(list(self.genre.keys()))),
-            
-            #* added users' countries (if publicly available) to graph
-            ('user', 'location', 'country'): (torch.tensor(list(self.country.keys())), torch.tensor(list(self.country.values()))),
-
-            ('country', 'locationed', 'user'): (torch.tensor(list(self.country.values())), torch.tensor(list(self.country.keys()))),
-            
-            #* added tags to graph
-            ('game', 'tag', 'tag_type'): (torch.tensor(list(self.tag.keys())), torch.tensor(list(self.tag.values()))),
-
-            ('tag_type', 'tagged', 'game'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
 
             ('user', 'play', 'game'): (self.user_game[:, 0].long(), self.user_game[:, 1].long()),
 
@@ -200,9 +178,6 @@ class Dataloader_steam(DGLDataset):
 
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
-
-        #* Add review sentiment scores of game textual reviews
-        graph.nodes['game'].data['senti_score'] = torch.tensor(list(self.sentiment_scores.values()))
 
         #* Added categorical review scores
         graph.nodes['game'].data['categorical_review'] = torch.tensor(list(self.categorical_review_scores.values()))
