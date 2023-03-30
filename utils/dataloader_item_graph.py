@@ -36,18 +36,14 @@ class Dataloader_item_graph(DGLDataset):
             ('game', 'co_publisher', 'game'): self.publisher,
             ('game', 'co_developer', 'game'): self.developer,
             ('game', 'co_genre', 'game'): self.genre,
-            #* Added similarity score
-            ('game', 'desc_similarity', 'game'): self.similarity_score_nodes,
-            #* added tags
-            ('game', 'co_tag', 'game'): self.tag
         }
         self.graph = dgl.heterograph(graph_data)
 
-        #* Add actual scores to cosine similarity edges
-        self.graph.edges['desc_similarity'].data['score'] = self.similarity_scores
-
         # Add app info graph dataloader_steam.graph into game nodes
         self.graph.nodes['game'].data['h'] = graph.ndata['h']['game'].float()
+
+        #* Add review sentiment scores of game textual reviews
+        self.graph.nodes['game'].data['senti_score'] = graph.ndata['senti_score']['game'].float() 
 
     def read_id_mapping(self, path):
         """
