@@ -37,7 +37,7 @@ class Dataloader_item_graph(DGLDataset):
             ('game', 'co_developer', 'game'): self.developer,
             ('game', 'co_genre', 'game'): self.genre,
             #* Added similarity score
-            ('game', 'desc_similarity', 'game'): self.similarity_score_nodes
+            ('game', 'desc_similarity', 'game'): self.similarity_score_nodes,
             #* added tags
             ('game', 'co_tag', 'game'): self.tag
         }
