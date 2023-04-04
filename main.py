@@ -33,6 +33,12 @@ from models.model import Proposed_model
 from utils.metrics import MAE, RMSE, ndcg_at_k, recall_at_k, hit_at_k, precision_at_k
 
 def validate(train_mask, dic, h, ls_k):
+    """
+        :param: train_mask () - 
+        :param: dic (Dictionary) - the validation data {userId: [gameIds owned]}
+        :param: h () - model/graph
+        :param: ls_k (List) - list of possible folds for k-fold validation
+    """
     users = torch.tensor(list(dic.keys())).long()
     user_embedding = h['user'][users]
     game_embedding = h['game']
@@ -53,7 +59,8 @@ def validate(train_mask, dic, h, ls_k):
     for k in ls_k:
         discount = (torch.tensor([i for i in range(k)]) + 2).log2()
         ideal, _ = result.sort(descending = True)
-        idcg = (ideal[:, :k] / discount).sum(dim = 1)
+        # TODO: Bugfix tensor size of ideal (7) and discount (10)
+        idcg = (ideal[:, :k] / discount).sum(dim = 1) 
         dcg = (result[:, :k] / discount).sum(dim = 1)
         ndcg = torch.mean(dcg / idcg)
 
@@ -99,13 +106,18 @@ if __name__ == '__main__':
     developer_path = path + '/Games_Developers.txt'
     publisher_path = path + '/Games_Publishers.txt'
     genres_path = path + '/Games_Genres.txt'
+    app_sentiments_path = path + '/sentiment_scores.pkl'
+    cos_similarity_path = path + '/cosine_description.pkl'
+    categorical_review_score_path = path + '/overall_review_score_all.csv'
+    country_path = path + '/user_country.txt'
+    tags_path = path + '/Games_Tags.txt'
 
     # Build user-item and user-user heterogeneous
-    DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path)
+    DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path, app_sentiments_path)
 
     graph = DataLoader.graph
     # Build item-item heterogeneous graph
-    DataLoader_item = Dataloader_item_graph(graph, app_id_path, publisher_path, developer_path, genres_path)
+    DataLoader_item = Dataloader_item_graph(graph, app_id_path, publisher_path, developer_path, genres_path, tags_path, cos_similarity_path)
 
     graph_item = DataLoader_item.graph
 
