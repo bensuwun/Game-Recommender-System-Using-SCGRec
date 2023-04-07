@@ -20,6 +20,7 @@ class Dataloader_item_graph(DGLDataset):
         self.publisher_path = publisher_path
         self.developer_path = developer_path
         self.genre_path = genre_path
+        self.tags_path = tags_path
         self.cos_similarity_path = cos_similarity_path
 
         # Retrieve co-features of games

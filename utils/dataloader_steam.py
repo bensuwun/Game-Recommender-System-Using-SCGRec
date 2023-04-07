@@ -283,7 +283,7 @@ class Dataloader_steam(DGLDataset):
         # # Replace NaNs with overall mean
         # generalized_senti_scores.replace(to_replace = np.nan, value = overall_mean, inplace = True)
 
-        generalized_senti_scores = convert_senti_scores(generalized_senti_scores)
+        generalized_senti_scores = self.convert_senti_scores(generalized_senti_scores)
 
         # Map app ids, key = mapped app id | value = categorical sentiment score
         mapping = {}
@@ -301,7 +301,7 @@ class Dataloader_steam(DGLDataset):
             mapping[key] = mapping_value2id[mapping[key]]
         return mapping
             
-    def convert_senti_scores(senti_scores):
+    def convert_senti_scores(self, senti_scores):
     # -1.0 to -0.5 = Very Negative ,-0.499 to 0.01 = Negative ,0 = Neutral, 0.01 - 0.499 = Positive, 0.5 - 1.0 = Very Positive
         mapped_scores = {}
         for appid, score in senti_scores.items():
