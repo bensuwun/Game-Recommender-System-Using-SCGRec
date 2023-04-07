@@ -274,15 +274,6 @@ class Dataloader_steam(DGLDataset):
             
         # Get the mean/median/mode of each app's sentiment scores
         generalized_senti_scores = senti_scores.mean(axis = 1)
-        
-        # NORMALIZATION PROCESS, Remove for now
-
-        # # Compute overall mean of dataframe
-        # overall_mean = generalized_senti_scores.mean()
-        
-        # # Replace NaNs with overall mean
-        # generalized_senti_scores.replace(to_replace = np.nan, value = overall_mean, inplace = True)
-
         generalized_senti_scores = self.convert_senti_scores(generalized_senti_scores)
 
         # Map app ids, key = mapped app id | value = categorical sentiment score
@@ -295,8 +286,12 @@ class Dataloader_steam(DGLDataset):
         count = 0
         for value in mapping.values():
             if value not in mapping_value2id:
-                mapping_value2id[value] = count
-                count += 1
+                # Extra check for nan
+                if (isinstance(value, str)):
+                    mapping_value2id[value] = count
+                    count += 1
+                else:
+                    mapping_value2id[value] = np.nan
         for key in mapping:
             mapping[key] = mapping_value2id[mapping[key]]
         return mapping
@@ -327,23 +322,28 @@ class Dataloader_steam(DGLDataset):
         # Filter dataframe to only obtain necessary columns
         df = df[["appids", "overall_review_score"]]
 
-        # Perform OHE on dataframe
-        df = pd.get_dummies(df, prefix="", prefix_sep="")
-
-        # Rearrange columns to easily remember order
-        cols = ["appids", "Overwhelmingly Negative", "Very Negative", "Negative", "Mostly Negative", "Mixed", "Mostly Positive", "Positive", "Very Positive", "Overwhelmingly Positive"]
-        df = df[cols]
-
         # Map app ids, key = mapped app id | value = categorical review score
-        dic = {}
+        mapping = {}
         for i in range(len(df)):
-            mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]
-            scores_feature = df.iloc[i, 1:].to_numpy()
-            scores_feature = scores_feature.astype(np.float64)
-            
-            dic[mapped_appid] = scores_feature
+            mapped_appid = app_id_mapping[str(df.iloc[i, 0])]        
+            mapping[mapped_appid] = df.iloc[i, 1]
 
-        return dic
+        # Map values (e.g. Very Positive = 0, Positive = 1)
+        mapping_value2id = {}
+        count = 0
+        for value in mapping.values():
+            if value not in mapping_value2id:
+                # Extra check for nan
+                if (isinstance(value, str)):
+                    mapping_value2id[value] = count
+                    count += 1
+                else:
+                    mapping_value2id[value] = np.nan
+
+        for key in mapping:
+            mapping[key] = mapping_value2id[mapping[key]]
+
+        return mapping
             
     
     def read_mapping(self, path):
