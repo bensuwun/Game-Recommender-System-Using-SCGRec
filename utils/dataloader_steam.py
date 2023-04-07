@@ -165,6 +165,16 @@ class Dataloader_steam(DGLDataset):
 
             ('tag_type', 'tagged', 'game'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
 
+            #* added categorical review scores
+            ('game', 'review score', 'categorical_review_score'): (torch.tensor(list(self.categorical_review_scores.keys())), torch.tensor(list(self.categorical_review_scores.values()))),
+
+            ('categorical_review_score', 'review scored', 'game'): (torch.tensor(list(self.categorical_review_scores.values())), torch.tensor(list(self.categorical_review_scores.keys()))),
+
+            #* Add review sentiment scores of game textual reviews
+            ('game', 'vader score', 'sentiment_score'): (torch.tensor(list(self.sentiment_scores.keys())), torch.tensor(list(self.sentiment_scores.values()))),
+
+            ('sentiment_score', 'vader scored', 'game'): (torch.tensor(list(self.sentiment_scores.values())), torch.tensor(list(self.sentiment_scores.keys()))),
+
             ('user', 'play', 'game'): (self.user_game[:, 0].long(), self.user_game[:, 1].long()),
 
             ('game', 'played by', 'user'): (self.user_game[:, 1].long(), self.user_game[:, 0].long())
@@ -200,12 +210,6 @@ class Dataloader_steam(DGLDataset):
 
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
-
-        #* Add review sentiment scores of game textual reviews
-        graph.nodes['game'].data['senti_score'] = torch.tensor(list(self.sentiment_scores.values()))
-
-        #* Added categorical review scores
-        graph.nodes['game'].data['categorical_review'] = torch.tensor(list(self.categorical_review_scores.values()))
 
         # Add dwelling time to edges with type "play" and "played by" (1D Tensor Array consisting of dwelling time)
         graph.edges['play'].data['time'] = self.user_game[:, 2]
@@ -271,19 +275,51 @@ class Dataloader_steam(DGLDataset):
         # Get the mean/median/mode of each app's sentiment scores
         generalized_senti_scores = senti_scores.mean(axis = 1)
         
-        # Compute overall mean of dataframe
-        overall_mean = generalized_senti_scores.mean()
-        
-        # Replace NaNs with overall mean
-        generalized_senti_scores.replace(to_replace = np.nan, value = overall_mean, inplace = True)
+        # NORMALIZATION PROCESS, Remove for now
 
-        # Map app ids, key = mapped app id | value = sentiment score
-        dic = {}
+        # # Compute overall mean of dataframe
+        # overall_mean = generalized_senti_scores.mean()
+        
+        # # Replace NaNs with overall mean
+        # generalized_senti_scores.replace(to_replace = np.nan, value = overall_mean, inplace = True)
+
+        generalized_senti_scores = convert_senti_scores(generalized_senti_scores)
+
+        # Map app ids, key = mapped app id | value = categorical sentiment score
+        mapping = {}
         for appid, score in generalized_senti_scores.items():
-            mapped_appid = self.app_id_mapping[str(appid)]
-            dic[mapped_appid] = score
+            mapping[self.app_id_mapping[str(appid)]] = score
+
+        # Map values (e.g. Very Negative = 0, Negative = 1)
+        mapping_value2id = {}
+        count = 0
+        for value in mapping.values():
+            if value not in mapping_value2id:
+                mapping_value2id[value] = count
+                count += 1
+        for key in mapping:
+            mapping[key] = mapping_value2id[mapping[key]]
+        return mapping
             
-        return dic
+    def convert_senti_scores(senti_scores):
+    # -1.0 to -0.5 = Very Negative ,-0.499 to 0.01 = Negative ,0 = Neutral, 0.01 - 0.499 = Positive, 0.5 - 1.0 = Very Positive
+        mapped_scores = {}
+        for appid, score in senti_scores.items():
+            if score == 0:
+                label = 'Neutral'         
+            elif score >= -1 and score <= -0.5:
+                label = 'Very Negative'
+            elif score > -0.5 and score < 0:
+                label = 'Negative'
+            elif score > 0 and score < 0.5:
+                label = 'Positive'
+            elif score >= 0.5 and score <= 1:
+                label = 'Very Positive'
+            else:
+                label = np.nan
+            # print("App: {} | Score: {} | Label: {}".format(appid, score, label))
+            mapped_scores[appid] = label
+        return mapped_scores
       
     def read_categorical_review_scores(self, path):
         df = pd.read_csv(path)

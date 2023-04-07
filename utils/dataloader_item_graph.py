@@ -36,10 +36,10 @@ class Dataloader_item_graph(DGLDataset):
             ('game', 'co_publisher', 'game'): self.publisher,
             ('game', 'co_developer', 'game'): self.developer,
             ('game', 'co_genre', 'game'): self.genre,
-            #* Added similarity score
-            ('game', 'desc_similarity', 'game'): self.similarity_score_nodes,
             #* added tags
-            ('game', 'co_tag', 'game'): self.tag
+            ('game', 'co_tag', 'game'): self.tag,
+            #* added similarity score
+            ('game', 'desc_similarity', 'game'): self.similarity_score_nodes,
         }
         self.graph = dgl.heterograph(graph_data)
 
