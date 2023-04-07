@@ -325,7 +325,7 @@ class Dataloader_steam(DGLDataset):
         # Map app ids, key = mapped app id | value = categorical review score
         mapping = {}
         for i in range(len(df)):
-            mapped_appid = app_id_mapping[str(df.iloc[i, 0])]        
+            mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]        
             mapping[mapped_appid] = df.iloc[i, 1]
 
         # Map values (e.g. Very Positive = 0, Positive = 1)
