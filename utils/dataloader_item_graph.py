@@ -34,6 +34,7 @@ class Dataloader_item_graph(DGLDataset):
         self.similarity_score_nodes, self.similarity_scores = self.read_cos_similarity(self.cos_similarity_path)
         self.tag = self.read_mapping(self.tags_path)
         self.categorical_review_scores = self.read_categorical_review_scores(self.categorical_review_score_path)
+        self.sentiment_scores = self.read_sentiment_scores(self.app_sentiments_path)
 
         # Initialize game context graph from co-features
         graph_data = {
@@ -44,6 +45,8 @@ class Dataloader_item_graph(DGLDataset):
             ('game', 'co_tag', 'game'): self.tag,
             #* added categorical review scores
             ('game', 'co_categorical_reviews', 'game'): self.categorical_review_scores,
+            #* added sentiment scores
+            ('game', 'co_sentiment_reviews', 'game'): self.sentiment_scores,
             #* added similarity score
             ('game', 'desc_similarity', 'game'): self.similarity_score_nodes,
         }
@@ -148,6 +151,44 @@ class Dataloader_item_graph(DGLDataset):
                     src.extend([game1, game2])
                     dst.extend([game2, game1])
 
+        return (torch.tensor(src), torch.tensor(dst))
+
+    def read_sentiment_scores(self, path):
+        senti_scores = pd.read_pickle(path)
+        senti_scores.drop(columns=["index"], inplace=True)
+        senti_scores = senti_scores.set_index('appid')
+
+        # Get the mean/median/mode of each app's sentiment scores
+        generalized_senti_scores = senti_scores.mean(axis = 1)
+        generalized_senti_scores = convert_senti_scores(generalized_senti_scores)
+
+        # Map app ids, key = mapped app id | value = categorical sentiment score
+        mapping = {}
+        for appid, score in generalized_senti_scores.items():
+            mapping[self.app_id_mapping[str(appid)]] = score
+
+        # Map values (e.g. Very Negative = 0, Negative = 1)
+        mapping_value2id = {}
+        count = 0
+        for value in mapping.values():
+            if value not in mapping_value2id:
+                mapping_value2id[value] = count
+                count += 1
+        for key in mapping:
+            mapping[key] = mapping_value2id[mapping[key]]
+
+        # Retrieve games with same sentiment score bin
+        src = []
+        dst = []
+        keys = list(mapping.keys())
+        for i in range(len(keys) - 1):
+            for j in range(i + 1, len(keys)):
+                game1 = keys[i]
+                game2 = keys[j]
+                # only establish connections for games with categorical review scores
+                if (mapping[game1] == mapping[game2]):
+                    src.extend([game1, game2])
+                    dst.extend([game2, game1])
         return (torch.tensor(src), torch.tensor(dst))
 
     def read_cos_similarity(self, path):
