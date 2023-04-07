@@ -123,7 +123,7 @@ class Dataloader_item_graph(DGLDataset):
         df = df.set_index("appids")
 
         # Convert to Series, to dictionary
-        df = df.head().iloc[:, 0]
+        df = df.iloc[:, 0]
         mapping = df.to_dict()
 
         # Retrieve games with same categorical review scores
