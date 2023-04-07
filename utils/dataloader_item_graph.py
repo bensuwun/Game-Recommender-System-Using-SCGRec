@@ -112,19 +112,28 @@ class Dataloader_item_graph(DGLDataset):
         return (torch.tensor(src), torch.tensor(dst))
 
     def read_categorical_review_scores(self, path):
-        df = pd.read_csv(path, keep_default_na = False)
+        df = pd.read_csv(path)
 
         # Filter dataframe to only obtain necessary columns
         df = df[["appids", "overall_review_score"]]
 
-        # Map app ids
-        for i in range(df.shape[0]):
-            df.at[i, "appids"] = self.app_id_mapping[str(df.iloc[i]["appids"])]
-        df = df.set_index("appids")
+        # Map app ids, key = mapped app id | value = categorical review score
+        mapping = {}
+        for i in range(len(df)):
+            mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]        
+            mapping[mapped_appid] = df.iloc[i, 1]
 
-        # Convert to Series, to dictionary
-        df = df.iloc[:, 0]
-        mapping = df.to_dict()
+        # Map values (e.g. Very Positive = 0, Positive = 1, nan = 2)
+        mapping_value2id = {}
+        count = 0
+        for value in mapping.values():
+            if value not in mapping_value2id:
+                # Extra check for nan
+                mapping_value2id[value] = count
+                count += 1
+
+        for key in mapping:
+            mapping[key] = mapping_value2id[mapping[key]]
 
         # Retrieve games with same categorical review scores
         src = []
@@ -134,8 +143,8 @@ class Dataloader_item_graph(DGLDataset):
             for j in range(i + 1, len(keys)):
                 game1 = keys[i]
                 game2 = keys[j]
-                # only establish connections for games WITH THE SAME categorical review scores, excluding none values
-                if (mapping[game1] != "" and mapping[game2] != "" and mapping[game1] == mapping[game2]):
+                # only establish connections for games WITH THE SAME categorical review scores, excluding nan values
+                if (mapping[game1] == mapping[game2]):
                     src.extend([game1, game2])
                     dst.extend([game2, game1])
 

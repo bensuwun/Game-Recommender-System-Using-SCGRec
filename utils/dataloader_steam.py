@@ -287,11 +287,8 @@ class Dataloader_steam(DGLDataset):
         for value in mapping.values():
             if value not in mapping_value2id:
                 # Extra check for nan
-                if (isinstance(value, str)):
-                    mapping_value2id[value] = count
-                    count += 1
-                else:
-                    mapping_value2id[value] = np.nan
+                mapping_value2id[value] = count
+                count += 1
         for key in mapping:
             mapping[key] = mapping_value2id[mapping[key]]
         return mapping
@@ -334,11 +331,8 @@ class Dataloader_steam(DGLDataset):
         for value in mapping.values():
             if value not in mapping_value2id:
                 # Extra check for nan
-                if (isinstance(value, str)):
-                    mapping_value2id[value] = count
-                    count += 1
-                else:
-                    mapping_value2id[value] = np.nan
+                mapping_value2id[value] = count
+                count += 1
 
         for key in mapping:
             mapping[key] = mapping_value2id[mapping[key]]
