@@ -1,6 +1,5 @@
 import sys
 import torch
-import pandas
 import logging
 import utils.logs.log_config as log_config
 logger = logging.getLogger(__name__)
@@ -8,6 +7,7 @@ log_config.SetDefaultConfig(logger)
 
 import dgl
 import pandas as pd
+import numpy as np
 from tqdm import tqdm
 from dgl.data import DGLDataset
 
@@ -112,14 +112,14 @@ class Dataloader_item_graph(DGLDataset):
         return (torch.tensor(src), torch.tensor(dst))
 
     def read_categorical_review_scores(self, path):
-        df = pd.read_csv(path)
+        df = pd.read_csv(path, keep_default_na = False)
 
         # Filter dataframe to only obtain necessary columns
         df = df[["appids", "overall_review_score"]]
 
         # Map app ids
         for i in range(df.shape[0]):
-            df.at[i, "appids"] = self.app_id_mapping[str(df.iloc[i]["appids"])] # Change to mapped app id
+            df.at[i, "appids"] = self.app_id_mapping[str(df.iloc[i]["appids"])]
         df = df.set_index("appids")
 
         # Convert to Series, to dictionary
@@ -134,8 +134,8 @@ class Dataloader_item_graph(DGLDataset):
             for j in range(i + 1, len(keys)):
                 game1 = keys[i]
                 game2 = keys[j]
-                # only establish connections for games with categorical review scores
-                if (mapping[game1] != np.nan and mapping[game2] != np.nan):
+                # only establish connections for games WITH THE SAME categorical review scores, excluding none values
+                if (mapping[game1] != "" and mapping[game2] != "" and mapping[game1] == mapping[game2]):
                     src.extend([game1, game2])
                     dst.extend([game2, game1])
 
