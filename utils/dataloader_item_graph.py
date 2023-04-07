@@ -123,15 +123,17 @@ class Dataloader_item_graph(DGLDataset):
         # Map app ids, key = mapped app id | value = categorical review score
         mapping = {}
         for i in range(len(df)):
-            mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]        
-            mapping[mapped_appid] = df.iloc[i, 1]
+            value = df.iloc[i, 1]
+            # Only read non null/nan values
+            if (isinstance(value, str)):
+                mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]        
+                mapping[mapped_appid] = value
 
         # Map values (e.g. Very Positive = 0, Positive = 1, nan = 2)
         mapping_value2id = {}
         count = 0
         for value in mapping.values():
             if value not in mapping_value2id:
-                # Extra check for nan
                 mapping_value2id[value] = count
                 count += 1
 
@@ -165,7 +167,9 @@ class Dataloader_item_graph(DGLDataset):
         # Map app ids, key = mapped app id | value = categorical sentiment score
         mapping = {}
         for appid, score in generalized_senti_scores.items():
-            mapping[self.app_id_mapping[str(appid)]] = score
+            # Only read non null/nan values
+            if isinstance(score, str):
+                mapping[self.app_id_mapping[str(appid)]] = score
 
         # Map values (e.g. Very Negative = 0, Negative = 1)
         mapping_value2id = {}
