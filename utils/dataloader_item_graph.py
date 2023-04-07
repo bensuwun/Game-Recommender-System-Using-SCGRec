@@ -15,13 +15,15 @@ class Dataloader_item_graph(DGLDataset):
     """
         Initializes the item graph or the game context graph (5.1 in Liangwei et al's paper.)
     """
-    def __init__(self, graph, app_id_path, publisher_path, developer_path, genre_path, tags_path, cos_similarity_path):
+    def __init__(self, graph, app_id_path, publisher_path, developer_path, genre_path, tags_path, cos_similarity_path, categorical_review_score_path, app_sentiments_path):
         self.app_id_path = app_id_path
         self.publisher_path = publisher_path
         self.developer_path = developer_path
         self.genre_path = genre_path
         self.tags_path = tags_path
         self.cos_similarity_path = cos_similarity_path
+        self.categorical_review_score_path = categorical_review_score_path
+        self.app_sentiments_path = app_sentiments_path
 
         # Retrieve co-features of games
         logging.info("reading item graph")
@@ -31,6 +33,7 @@ class Dataloader_item_graph(DGLDataset):
         self.genre = self.read_mapping(self.genre_path)
         self.similarity_score_nodes, self.similarity_scores = self.read_cos_similarity(self.cos_similarity_path)
         self.tag = self.read_mapping(self.tags_path)
+        self.categorical_review_scores = self.read_categorical_review_scores(self.categorical_review_score_path)
 
         # Initialize game context graph from co-features
         graph_data = {
@@ -39,6 +42,8 @@ class Dataloader_item_graph(DGLDataset):
             ('game', 'co_genre', 'game'): self.genre,
             #* added tags
             ('game', 'co_tag', 'game'): self.tag,
+            #* added categorical review scores
+            ('game', 'co_categorical_reviews', 'game'): self.categorical_review_scores,
             #* added similarity score
             ('game', 'desc_similarity', 'game'): self.similarity_score_nodes,
         }
@@ -104,6 +109,36 @@ class Dataloader_item_graph(DGLDataset):
                 if len(mapping[game1] & mapping[game2]) > 0:
                     src.extend([game1, game2])
                     dst.extend([game2, game1])
+        return (torch.tensor(src), torch.tensor(dst))
+
+    def read_categorical_review_scores(self, path):
+        df = pd.read_csv(path)
+
+        # Filter dataframe to only obtain necessary columns
+        df = df[["appids", "overall_review_score"]]
+
+        # Map app ids
+        for i in range(df.shape[0]):
+            df.at[i, "appids"] = self.app_id_mapping[str(df.iloc[i]["appids"])] # Change to mapped app id
+        df = df.set_index("appids")
+
+        # Convert to Series, to dictionary
+        df = df.head().iloc[:, 0]
+        mapping = df.to_dict()
+
+        # Retrieve games with same categorical review scores
+        src = []
+        dst = []
+        keys = list(mapping.keys())
+        for i in range(len(keys) - 1):
+            for j in range(i + 1, len(keys)):
+                game1 = keys[i]
+                game2 = keys[j]
+                # only establish connections for games with categorical review scores
+                if (mapping[game1] != np.nan and mapping[game2] != np.nan):
+                    src.extend([game1, game2])
+                    dst.extend([game2, game1])
+
         return (torch.tensor(src), torch.tensor(dst))
 
     def read_cos_similarity(self, path):
