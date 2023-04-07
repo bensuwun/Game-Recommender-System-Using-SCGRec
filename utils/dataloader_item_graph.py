@@ -160,7 +160,7 @@ class Dataloader_item_graph(DGLDataset):
 
         # Get the mean/median/mode of each app's sentiment scores
         generalized_senti_scores = senti_scores.mean(axis = 1)
-        generalized_senti_scores = convert_senti_scores(generalized_senti_scores)
+        generalized_senti_scores = self.convert_senti_scores(generalized_senti_scores)
 
         # Map app ids, key = mapped app id | value = categorical sentiment score
         mapping = {}
@@ -190,6 +190,26 @@ class Dataloader_item_graph(DGLDataset):
                     src.extend([game1, game2])
                     dst.extend([game2, game1])
         return (torch.tensor(src), torch.tensor(dst))
+
+    def convert_senti_scores(self, senti_scores):
+        # -1.0 to -0.5 = Very Negative ,-0.499 to 0.01 = Negative ,0 = Neutral, 0.01 - 0.499 = Positive, 0.5 - 1.0 = Very Positive
+        mapped_scores = {}
+        for appid, score in senti_scores.items():
+            if score == 0:
+                label = 'Neutral'         
+            elif score >= -1 and score <= -0.5:
+                label = 'Very Negative'
+            elif score > -0.5 and score < 0:
+                label = 'Negative'
+            elif score > 0 and score < 0.5:
+                label = 'Positive'
+            elif score >= 0.5 and score <= 1:
+                label = 'Very Positive'
+            else:
+                label = np.nan
+            # print("App: {} | Score: {} | Label: {}".format(appid, score, label))
+            mapped_scores[appid] = label
+        return mapped_scores
 
     def read_cos_similarity(self, path):
         df = pd.read_pickle(path)
