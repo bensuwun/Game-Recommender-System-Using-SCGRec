@@ -156,7 +156,6 @@ class Dataloader_steam(DGLDataset):
             ('type', 'genred', 'game'): (torch.tensor(list(self.genre.values())), torch.tensor(list(self.genre.keys()))),
             
             #* added users' countries (if publicly available) to graph
-            # ([0, 1, 2, 3], [0, 0, 1, 1]) CZ, DE 
             ('user', 'location', 'country'): (torch.tensor(list(self.country.keys())), torch.tensor(list(self.country.values()))),
 
             ('country', 'locationed', 'user'): (torch.tensor(list(self.country.values())), torch.tensor(list(self.country.keys()))),
@@ -351,7 +350,7 @@ class Dataloader_steam(DGLDataset):
             Used to read the Developers, Genres, and Publishers txt files. Only reads the first developer/genre/publisher found.
             Sample return value: {0: 0, 1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 3}
 
-            :return: Dictionary, where keys = mapped AppIDs, values = mapped Developer/Genre/Publisher ID (last record found)
+            :return: Dictionary, where keys = mapped AppIDs, values = mapped Developer/Genre/Publisher ID (first record found)
         """
         mapping = {}
         with open(path, 'r') as f:

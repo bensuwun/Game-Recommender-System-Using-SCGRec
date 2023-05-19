@@ -119,13 +119,10 @@ if __name__ == '__main__':
     # Build item-item heterogeneous graph
     DataLoader_item = Dataloader_item_graph(graph, app_id_path, publisher_path, developer_path, genres_path, tags_path, cos_similarity_path, categorical_review_score_path, app_sentiments_path)
 
-    # Game-context graph
     graph_item = DataLoader_item.graph
 
-    # Social Graph
-    graph_social = dgl.edge_type_subgraph(graph, [('user', 'friend of', 'user'), ('user', 'location', 'country'), ('country', 'locationed', 'user')])
+    graph_social = dgl.edge_type_subgraph(graph, [('user', 'friend of', 'user')])
 
-    # Time-aware Context Graph = user-item interaction, apply weights for percentiles
     graph = dgl.edge_type_subgraph(graph, [('user', 'play', 'game'), ('game', 'played by', 'user')])
     graph.update_all(fn.copy_edge('percentile', 'm'), fn.sum('m', 'total'), etype = 'played by')
     graph.apply_edges(func = fn.e_div_v('percentile', 'total', 'weight'), etype = 'played by')
@@ -141,7 +138,6 @@ if __name__ == '__main__':
 
     model = Proposed_model(args, graph, graph_item)
 
-    # Create predictor
     predictor = HeteroDotProductPredictor()
     model.to(device)
     opt = torch.optim.Adam(model.parameters(), lr = args.lr)
@@ -150,7 +146,6 @@ if __name__ == '__main__':
     ndcg_val_best = 0
     ls_k = args.k
 
-    # Begin training and validation
     total_epoch = 0
     loss_values = []
     for epoch in range(args.epoch):

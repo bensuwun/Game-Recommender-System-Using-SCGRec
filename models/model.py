@@ -27,7 +27,6 @@ class Proposed_model(nn.Module):
 
         # Game Context Graph
         self.item_conv = SAGEConv(self.hid_dim, self.hid_dim, 'mean')
-        
         # Social Graph with Attention, aggregate with SAGEConv
         self.social_GAT = GATConv(self.hid_dim, self.hid_dim, num_heads = 1, allow_zero_in_degree = True)
         self.social_conv = SAGEConv(self.hid_dim, self.hid_dim, 'mean')
