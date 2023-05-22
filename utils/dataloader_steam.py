@@ -128,7 +128,7 @@ class Dataloader_steam(DGLDataset):
         self.genre = self.read_mapping(self.genres_path)
 
         logger.info("reading user country code from {}".format(self.country_path))
-        self.country = self.read_country_mapping(self.country_path)
+        self.country = self.read_country_mapping_as_attribute(self.country_path)
         
         logger.info("reading tag from {}".format(self.tags_path))
         self.tag = self.read_mapping(self.tags_path)
@@ -154,11 +154,6 @@ class Dataloader_steam(DGLDataset):
             ('game', 'genre', 'type'): (torch.tensor(list(self.genre.keys())), torch.tensor(list(self.genre.values()))),
 
             ('type', 'genred', 'game'): (torch.tensor(list(self.genre.values())), torch.tensor(list(self.genre.keys()))),
-            
-            #* added users' countries (if publicly available) to graph
-            ('user', 'location', 'country'): (torch.tensor(list(self.country.keys())), torch.tensor(list(self.country.values()))),
-
-            ('country', 'locationed', 'user'): (torch.tensor(list(self.country.values())), torch.tensor(list(self.country.keys()))),
             
             #* added tags to graph
             ('game', 'tag', 'tag_type'): (torch.tensor(list(self.tag.keys())), torch.tensor(list(self.tag.values()))),
@@ -210,6 +205,9 @@ class Dataloader_steam(DGLDataset):
 
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
+
+        #* Add country to user nodes as attribute
+        graph.nodes['user'].data['country'] = torch.tensor(self.country)
 
         # Add dwelling time to edges with type "play" and "played by" (1D Tensor Array consisting of dwelling time)
         graph.edges['play'].data['time'] = self.user_game[:, 2]
@@ -395,6 +393,32 @@ class Dataloader_steam(DGLDataset):
         for key in mapping:
             mapping[key] = mapping_value2id[mapping[key]]
         return mapping
+
+    """
+        Read country text file, return value is ndarray of shape (u, c), where u = number of users, and c = number of unique countries (including None) 
+    """
+    def read_country_mapping_as_attribute(self, path):
+        mapping = {}
+        with open(path, 'r') as f:
+            # File is arranged by user ID in users.txt
+            for line in f:
+                line = line.strip().split(' ')
+                line = [value for value in line if value != ""]
+                
+                # Map user ID to mapped ID
+                mapping[self.user_id_mapping[line[0]]] = line[1]
+
+            # Create df from dict
+            df = pd.DataFrame.from_dict(mapping, orient='index')
+            df.columns = ['country']
+
+            # One hot encode
+            df = pd.get_dummies(df, columns = ['country'])
+
+            # Return tensor of OHE countries, sorted by mapped user ID
+            user_countries = df.values
+
+            return user_countries
     
     def read_play_time_rank(self, game_path, time_path):
         """
