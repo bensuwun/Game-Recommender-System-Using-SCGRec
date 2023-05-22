@@ -402,8 +402,7 @@ class Dataloader_steam(DGLDataset):
         with open(path, 'r') as f:
             # File is arranged by user ID in users.txt
             for line in f:
-                line = line.strip().split(' ')
-                line = [value for value in line if value != ""]
+                line = line.strip().split(',')
                 
                 # Map user ID to mapped ID
                 mapping[self.user_id_mapping[line[0]]] = line[1]
