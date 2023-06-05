@@ -113,6 +113,7 @@ if __name__ == '__main__':
     tags_path = path + '/Games_Tags.txt'
 
     # Build user-item and user-user heterogeneous
+    #^ 3 - batch size
     DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path, app_sentiments_path)
 
     graph = DataLoader.graph
@@ -136,10 +137,12 @@ if __name__ == '__main__':
         train_mask[i, :][item_train] = 1
     train_mask = train_mask.bool()
 
+    #^ 1 - Embed Size
     model = Proposed_model(args, graph, graph_item)
 
     predictor = HeteroDotProductPredictor()
     model.to(device)
+    #^ 2 - Learning Rate
     opt = torch.optim.Adam(model.parameters(), lr = args.lr)
 
     stop_count = 0

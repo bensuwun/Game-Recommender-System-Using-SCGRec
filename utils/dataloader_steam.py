@@ -274,7 +274,7 @@ class Dataloader_steam(DGLDataset):
         generalized_senti_scores = senti_scores.mean(axis = 1)
         generalized_senti_scores = self.convert_senti_scores(generalized_senti_scores)
 
-        # Map app ids, key = mapped app id | value = categorical sentiment score
+        # Map app ids, key = mapped app id | value = categorical sentiment score (.items() does not include nan values)
         mapping = {}
         for appid, score in generalized_senti_scores.items():
             # Only read non null/nan values
@@ -555,6 +555,7 @@ class Dataloader_steam(DGLDataset):
         # Generate unique ids for each edge with type 'play'
         train_id = torch.tensor([i for i in range(graph.edges(etype = 'play')[0].shape[0])], dtype = torch.long)
 
+        #^ 3 - Batch Size
         dataloader = dgl.dataloading.EdgeDataLoader(
             graph, {('user', 'play', 'game'): train_id},
             sampler, negative_sampler = NegativeSampler(self.dic_user_game), batch_size = args.batch_size, shuffle = True, num_workers = 2
