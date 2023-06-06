@@ -113,10 +113,10 @@ class Dataloader_steam(DGLDataset):
         self.app_info = self.read_app_info(self.app_info_path)
 
         logger.info("reading sentiment scores from {} to self.app_info".format(self.app_sentiment_scores_path))
-        self.sentiment_scores = self.read_sentiment_scores(self.app_sentiment_scores_path) 
+        self.sentiment_scores = self.read_sentiment_scores_attr(self.app_sentiment_scores_path) 
 
         logger.info("adding categorical (overall/recent) review scores from {}".format(self.categorical_review_score_path))
-        self.categorical_review_scores = self.read_categorical_review_scores(self.categorical_review_score_path)
+        self.categorical_review_scores = self.read_categorical_review_scores_attr(self.categorical_review_score_path)
 
         logger.info("reading publisher from {}".format(self.publisher_path))
         self.publisher = self.read_mapping(self.publisher_path)
@@ -154,21 +154,6 @@ class Dataloader_steam(DGLDataset):
             ('game', 'genre', 'type'): (torch.tensor(list(self.genre.keys())), torch.tensor(list(self.genre.values()))),
 
             ('type', 'genred', 'game'): (torch.tensor(list(self.genre.values())), torch.tensor(list(self.genre.keys()))),
-            
-            #* added tags to graph
-            ('game', 'tag', 'tag_type'): (torch.tensor(list(self.tag.keys())), torch.tensor(list(self.tag.values()))),
-
-            ('tag_type', 'tagged', 'game'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
-
-            #* added categorical review scores
-            ('game', 'review score', 'categorical_review_score'): (torch.tensor(list(self.categorical_review_scores.keys())), torch.tensor(list(self.categorical_review_scores.values()))),
-
-            ('categorical_review_score', 'review scored', 'game'): (torch.tensor(list(self.categorical_review_scores.values())), torch.tensor(list(self.categorical_review_scores.keys()))),
-
-            #* Add review sentiment scores of game textual reviews
-            ('game', 'vader score', 'sentiment_score'): (torch.tensor(list(self.sentiment_scores.keys())), torch.tensor(list(self.sentiment_scores.values()))),
-
-            ('sentiment_score', 'vader scored', 'game'): (torch.tensor(list(self.sentiment_scores.values())), torch.tensor(list(self.sentiment_scores.keys()))),
 
             ('user', 'play', 'game'): (self.user_game[:, 0].long(), self.user_game[:, 1].long()),
 
@@ -197,10 +182,19 @@ class Dataloader_steam(DGLDataset):
             count_total += 1
             node = int(node)
             if node in self.app_info:
-                ls_feature.append(self.app_info[node])
+                feature = self.app_info[node]
             else:
+                feature = feature_mean
                 count_without_feature += 1
-                ls_feature.append(feature_mean)
+
+            #* Add sentiment score to game node as attribute
+            feature = np.append(feature, self.sentiment_scores[node])
+
+            #* Add categorical review score to game node as attribute
+            feature = np.append(feature, self.categorical_review_scores[node])
+        
+            ls_feature.append(feature)
+            
         logger.info("total game number is {}, games without features number is {}".format(count_total,count_without_feature ))
 
         # Add app info to game nodes, which have been stored in ls_feature
@@ -265,6 +259,25 @@ class Dataloader_steam(DGLDataset):
         dic['feature_num'] = len(feature)
         return dic
 
+    def read_sentiment_scores_attr(self, path):
+        """
+            Returns sentiment scores as Dictionary, where keys = mapped App IDs | values = mean sentiment score of game/app.
+            Unlike previous implementation, this includes app ids that have nan values.
+        """
+        senti_scores = pd.read_pickle(path)
+        senti_scores.drop(columns=["index"], inplace=True)
+        senti_scores = senti_scores.set_index('appid')
+        
+        # Get the mean/median/mode of each app's sentiment scores
+        generalized_senti_scores = senti_scores.mean(axis = 1)
+
+        # Map app ids, key = mapped app id | value = categorical sentiment score
+        mapping = {}
+        for appid, score in generalized_senti_scores.items():
+            mapping[self.app_id_mapping[str(appid)]] = score
+
+        return mapping
+
     def read_sentiment_scores(self, path):
         senti_scores = pd.read_pickle(path)
         senti_scores.drop(columns=["index"], inplace=True)
@@ -294,7 +307,7 @@ class Dataloader_steam(DGLDataset):
         return mapping
             
     def convert_senti_scores(self, senti_scores):
-    # -1.0 to -0.5 = Very Negative ,-0.499 to 0.01 = Negative ,0 = Neutral, 0.01 - 0.499 = Positive, 0.5 - 1.0 = Very Positive
+        # -1.0 to -0.5 = Very Negative ,-0.499 to 0.01 = Negative ,0 = Neutral, 0.01 - 0.499 = Positive, 0.5 - 1.0 = Very Positive
         mapped_scores = {}
         for appid, score in senti_scores.items():
             if score == 0:
@@ -312,6 +325,31 @@ class Dataloader_steam(DGLDataset):
             # print("App: {} | Score: {} | Label: {}".format(appid, score, label))
             mapped_scores[appid] = label
         return mapped_scores
+
+    def read_categorical_review_scores_attr(self, path):
+        """
+            Returns categorical review scores as Dictionary, where keys = mapped App ID | values = np.array of OHE categorical review scores
+        """
+        df = pd.read_csv(path)
+
+        # Filter dataframe to only obtain necessary columns
+        df = df[["appids", "overall_review_score"]]
+
+        # Perform OHE
+        df = pd.get_dummies(df, prefix="", prefix_sep="")
+        columns = ["appids", "Overwhelmingly Negative", "Very Negative", "Negative", "Mostly Negative", "Mixed", "Mostly Positive", "Positive", "Very Positive", "Overwhelmingly Positive"]
+        df = df[columns]
+
+        # Map app ids, key = mapped app id | value = categorical review score
+        mapping = {}
+        counter = 0
+        for i in range(len(df)):
+            value = df.iloc[i, 1:].to_numpy()
+            mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]        
+            mapping[mapped_appid] = value
+
+        # return mapping
+        return mapping    
       
     def read_categorical_review_scores(self, path):
         df = pd.read_csv(path)

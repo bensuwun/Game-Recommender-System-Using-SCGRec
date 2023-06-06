@@ -43,10 +43,6 @@ class Dataloader_item_graph(DGLDataset):
             ('game', 'co_genre', 'game'): self.genre,
             #* added tags
             ('game', 'co_tag', 'game'): self.tag,
-            #* added categorical review scores
-            ('game', 'co_categorical_reviews', 'game'): self.categorical_review_scores,
-            #* added sentiment scores
-            ('game', 'co_sentiment_reviews', 'game'): self.sentiment_scores,
             #* added similarity score
             ('game', 'desc_similarity', 'game'): self.similarity_score_nodes,
         }
