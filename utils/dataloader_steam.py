@@ -336,7 +336,7 @@ class Dataloader_steam(DGLDataset):
         df = df[["appids", "overall_review_score"]]
 
         # Perform OHE
-        df = pd.get_dummies(df, prefix="", prefix_sep="")
+        df = pd.get_dummies(df, prefix="", prefix_sep="", dtype="int")
         columns = ["appids", "Overwhelmingly Negative", "Very Negative", "Negative", "Mostly Negative", "Mixed", "Mostly Positive", "Positive", "Very Positive", "Overwhelmingly Positive"]
         df = df[columns]
 
