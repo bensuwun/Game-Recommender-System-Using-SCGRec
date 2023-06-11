@@ -271,6 +271,15 @@ class Dataloader_steam(DGLDataset):
         # Get the mean/median/mode of each app's sentiment scores
         generalized_senti_scores = senti_scores.mean(axis = 1)
 
+        # Replace sentiment score nans with mean
+        mean = generalized_senti_scores.mean()
+        generalized_senti_scores.replace(to_replace=np.nan, value=mean, inplace=True)
+
+        # Normalize sentiment scores
+        mean = generalized_senti_scores.mean()
+        std = generalized_senti_scores.std()
+        generalized_senti_scores = (generalized_senti_scores - mean) / std
+
         # Map app ids, key = mapped app id | value = categorical sentiment score
         mapping = {}
         for appid, score in generalized_senti_scores.items():
