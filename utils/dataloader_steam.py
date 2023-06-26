@@ -287,54 +287,6 @@ class Dataloader_steam(DGLDataset):
 
         return mapping
 
-    def read_sentiment_scores(self, path):
-        senti_scores = pd.read_pickle(path)
-        senti_scores.drop(columns=["index"], inplace=True)
-        senti_scores = senti_scores.set_index('appid')
-            
-        # Get the mean/median/mode of each app's sentiment scores
-        generalized_senti_scores = senti_scores.mean(axis = 1)
-        generalized_senti_scores = self.convert_senti_scores(generalized_senti_scores)
-
-        # Map app ids, key = mapped app id | value = categorical sentiment score (.items() does not include nan values)
-        mapping = {}
-        for appid, score in generalized_senti_scores.items():
-            # Only read non null/nan values
-            if isinstance(score, str):
-                mapping[self.app_id_mapping[str(appid)]] = score
-
-        # Map values (e.g. Very Negative = 0, Negative = 1)
-        mapping_value2id = {}
-        count = 0
-        for value in mapping.values():
-            if value not in mapping_value2id:
-                # Extra check for nan
-                mapping_value2id[value] = count
-                count += 1
-        for key in mapping:
-            mapping[key] = mapping_value2id[mapping[key]]
-        return mapping
-            
-    def convert_senti_scores(self, senti_scores):
-        # -1.0 to -0.5 = Very Negative ,-0.499 to 0.01 = Negative ,0 = Neutral, 0.01 - 0.499 = Positive, 0.5 - 1.0 = Very Positive
-        mapped_scores = {}
-        for appid, score in senti_scores.items():
-            if score == 0:
-                label = 'Neutral'         
-            elif score >= -1 and score <= -0.5:
-                label = 'Very Negative'
-            elif score > -0.5 and score < 0:
-                label = 'Negative'
-            elif score > 0 and score < 0.5:
-                label = 'Positive'
-            elif score >= 0.5 and score <= 1:
-                label = 'Very Positive'
-            else:
-                label = np.nan
-            # print("App: {} | Score: {} | Label: {}".format(appid, score, label))
-            mapped_scores[appid] = label
-        return mapped_scores
-
     def read_categorical_review_scores_attr(self, path):
         """
             Returns categorical review scores as Dictionary, where keys = mapped App ID | values = np.array of OHE categorical review scores
@@ -359,37 +311,7 @@ class Dataloader_steam(DGLDataset):
 
         # return mapping
         return mapping    
-      
-    def read_categorical_review_scores(self, path):
-        df = pd.read_csv(path)
-
-        # Filter dataframe to only obtain necessary columns
-        df = df[["appids", "overall_review_score"]]
-
-        # Map app ids, key = mapped app id | value = categorical review score
-        mapping = {}
-        for i in range(len(df)):
-            value = df.iloc[i, 1]
-            # Only read non null/nan values
-            if (isinstance(value, str)):
-                mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]        
-                mapping[mapped_appid] = value
-
-        # Map values (e.g. Very Positive = 0, Positive = 1)
-        mapping_value2id = {}
-        count = 0
-        for value in mapping.values():
-            if value not in mapping_value2id:
-                # Extra check for nan
-                mapping_value2id[value] = count
-                count += 1
-
-        for key in mapping:
-            mapping[key] = mapping_value2id[mapping[key]]
-
-        return mapping
             
-    
     def read_mapping(self, path):
         """
             Used to read the Developers, Genres, and Publishers txt files. Only reads the first developer/genre/publisher found.
