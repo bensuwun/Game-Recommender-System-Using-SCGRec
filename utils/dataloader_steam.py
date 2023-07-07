@@ -128,7 +128,7 @@ class Dataloader_steam(DGLDataset):
         self.genre = self.read_mapping(self.genres_path)
 
         logger.info("reading user country code from {}".format(self.country_path))
-        self.country = self.read_country_mapping(self.country_path)
+        self.country = self.read_country_mapping_as_attribute(self.country_path)
         
         logger.info("reading tag from {}".format(self.tags_path))
         self.tag = self.read_mapping(self.tags_path)
@@ -155,15 +155,20 @@ class Dataloader_steam(DGLDataset):
 
             ('type', 'genred', 'game'): (torch.tensor(list(self.genre.values())), torch.tensor(list(self.genre.keys()))),
             
-            #* added users' countries (if publicly available) to graph
-            ('user', 'location', 'country'): (torch.tensor(list(self.country.keys())), torch.tensor(list(self.country.values()))),
-
-            ('country', 'locationed', 'user'): (torch.tensor(list(self.country.values())), torch.tensor(list(self.country.keys()))),
-            
             #* added tags to graph
             ('game', 'tag', 'tag_type'): (torch.tensor(list(self.tag.keys())), torch.tensor(list(self.tag.values()))),
 
             ('tag_type', 'tagged', 'game'): (torch.tensor(list(self.tag.values())), torch.tensor(list(self.tag.keys()))),
+
+            #* added categorical review scores
+            ('game', 'review score', 'categorical_review_score'): (torch.tensor(list(self.categorical_review_scores.keys())), torch.tensor(list(self.categorical_review_scores.values()))),
+
+            ('categorical_review_score', 'review scored', 'game'): (torch.tensor(list(self.categorical_review_scores.values())), torch.tensor(list(self.categorical_review_scores.keys()))),
+
+            #* Add review sentiment scores of game textual reviews
+            ('game', 'vader score', 'sentiment_score'): (torch.tensor(list(self.sentiment_scores.keys())), torch.tensor(list(self.sentiment_scores.values()))),
+
+            ('sentiment_score', 'vader scored', 'game'): (torch.tensor(list(self.sentiment_scores.values())), torch.tensor(list(self.sentiment_scores.keys()))),
 
             ('user', 'play', 'game'): (self.user_game[:, 0].long(), self.user_game[:, 1].long()),
 
@@ -201,11 +206,8 @@ class Dataloader_steam(DGLDataset):
         # Add app info to game nodes, which have been stored in ls_feature
         graph.nodes['game'].data['h'] = torch.tensor(np.vstack(ls_feature))
 
-        #* Add review sentiment scores of game textual reviews
-        graph.nodes['game'].data['senti_score'] = torch.tensor(list(self.sentiment_scores.values()))
-
-        #* Added categorical review scores
-        graph.nodes['game'].data['categorical_review'] = torch.tensor(list(self.categorical_review_scores.values()))
+        #* Add country to user nodes as attribute
+        graph.nodes['user'].data['country'] = torch.tensor(self.country)
 
         # Add dwelling time to edges with type "play" and "played by" (1D Tensor Array consisting of dwelling time)
         graph.edges['play'].data['time'] = self.user_game[:, 2]
@@ -270,20 +272,55 @@ class Dataloader_steam(DGLDataset):
             
         # Get the mean/median/mode of each app's sentiment scores
         generalized_senti_scores = senti_scores.mean(axis = 1)
-        
-        # Compute overall mean of dataframe
-        overall_mean = generalized_senti_scores.mean()
-        
-        # Replace NaNs with overall mean
-        generalized_senti_scores.replace(to_replace = np.nan, value = overall_mean, inplace = True)
+        generalized_senti_scores = self.convert_senti_scores(generalized_senti_scores)
 
-        # Map app ids, key = mapped app id | value = sentiment score
-        dic = {}
+        # Replace sentiment score nans with mean
+        mean = generalized_senti_scores.mean()
+        generalized_senti_scores.replace(to_replace=np.nan, value=mean, inplace=True)
+
+        # Normalize/Standardize sentiment scores
+        mean = generalized_senti_scores.mean()
+        std = generalized_senti_scores.std()
+        generalized_senti_scores = (generalized_senti_scores - mean) / std
+
+        # Map app ids, key = mapped app id | value = categorical sentiment score
+        mapping = {}
         for appid, score in generalized_senti_scores.items():
-            mapped_appid = self.app_id_mapping[str(appid)]
-            dic[mapped_appid] = score
+            # Only read non null/nan values
+            if isinstance(score, str):
+                mapping[self.app_id_mapping[str(appid)]] = score
+
+        # Map values (e.g. Very Negative = 0, Negative = 1)
+        mapping_value2id = {}
+        count = 0
+        for value in mapping.values():
+            if value not in mapping_value2id:
+                # Extra check for nan
+                mapping_value2id[value] = count
+                count += 1
+        for key in mapping:
+            mapping[key] = mapping_value2id[mapping[key]]
+        return mapping
             
-        return dic
+    def convert_senti_scores(self, senti_scores):
+    # -1.0 to -0.5 = Very Negative ,-0.499 to 0.01 = Negative ,0 = Neutral, 0.01 - 0.499 = Positive, 0.5 - 1.0 = Very Positive
+        mapped_scores = {}
+        for appid, score in senti_scores.items():
+            if score == 0:
+                label = 'Neutral'         
+            elif score >= -1 and score <= -0.5:
+                label = 'Very Negative'
+            elif score > -0.5 and score < 0:
+                label = 'Negative'
+            elif score > 0 and score < 0.5:
+                label = 'Positive'
+            elif score >= 0.5 and score <= 1:
+                label = 'Very Positive'
+            else:
+                label = np.nan
+            # print("App: {} | Score: {} | Label: {}".format(appid, score, label))
+            mapped_scores[appid] = label
+        return mapped_scores
       
     def read_categorical_review_scores(self, path):
         df = pd.read_csv(path)
@@ -291,23 +328,28 @@ class Dataloader_steam(DGLDataset):
         # Filter dataframe to only obtain necessary columns
         df = df[["appids", "overall_review_score"]]
 
-        # Perform OHE on dataframe
-        df = pd.get_dummies(df, prefix="", prefix_sep="")
-
-        # Rearrange columns to easily remember order
-        cols = ["appids", "Overwhelmingly Negative", "Very Negative", "Negative", "Mostly Negative", "Mixed", "Mostly Positive", "Positive", "Very Positive", "Overwhelmingly Positive"]
-        df = df[cols]
-
         # Map app ids, key = mapped app id | value = categorical review score
-        dic = {}
+        mapping = {}
         for i in range(len(df)):
-            mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]
-            scores_feature = df.iloc[i, 1:].to_numpy()
-            scores_feature = scores_feature.astype(np.float64)
-            
-            dic[mapped_appid] = scores_feature
+            value = df.iloc[i, 1]
+            # Only read non null/nan values
+            if (isinstance(value, str)):
+                mapped_appid = self.app_id_mapping[str(df.iloc[i, 0])]        
+                mapping[mapped_appid] = value
 
-        return dic
+        # Map values (e.g. Very Positive = 0, Positive = 1)
+        mapping_value2id = {}
+        count = 0
+        for value in mapping.values():
+            if value not in mapping_value2id:
+                # Extra check for nan
+                mapping_value2id[value] = count
+                count += 1
+
+        for key in mapping:
+            mapping[key] = mapping_value2id[mapping[key]]
+
+        return mapping
             
     
     def read_mapping(self, path):
@@ -360,6 +402,31 @@ class Dataloader_steam(DGLDataset):
         for key in mapping:
             mapping[key] = mapping_value2id[mapping[key]]
         return mapping
+
+    """
+        Read country text file, return value is ndarray of shape (u, c), where u = number of users, and c = number of unique countries (including None) 
+    """
+    def read_country_mapping_as_attribute(self, path):
+        mapping = {}
+        with open(path, 'r') as f:
+            # File is arranged by user ID in users.txt
+            for line in f:
+                line = line.strip().split(',')
+                
+                # Map user ID to mapped ID
+                mapping[self.user_id_mapping[line[0]]] = line[1]
+
+            # Create df from dict
+            df = pd.DataFrame.from_dict(mapping, orient='index')
+            df.columns = ['country']
+
+            # One hot encode
+            df = pd.get_dummies(df, columns = ['country'])
+
+            # Return tensor of OHE countries, sorted by mapped user ID
+            user_countries = df.values
+
+            return user_countries
     
     def read_play_time_rank(self, game_path, time_path):
         """
@@ -497,6 +564,7 @@ class Dataloader_steam(DGLDataset):
         # Generate unique ids for each edge with type 'play'
         train_id = torch.tensor([i for i in range(graph.edges(etype = 'play')[0].shape[0])], dtype = torch.long)
 
+        #^ 3 - Batch Size
         dataloader = dgl.dataloading.EdgeDataLoader(
             graph, {('user', 'play', 'game'): train_id},
             sampler, negative_sampler = NegativeSampler(self.dic_user_game), batch_size = args.batch_size, shuffle = True, num_workers = 2

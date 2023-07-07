@@ -45,6 +45,7 @@ def validate(train_mask, dic, h, ls_k):
     rating = torch.mm(user_embedding, game_embedding.t())
     rating[train_mask] = -float('inf')
 
+    # Create valid mask with similar shape as train_mask and set owned games to 1
     valid_mask = torch.zeros_like(train_mask)
     for i in range(users.shape[0]):
         user = int(users[i])
@@ -56,6 +57,7 @@ def validate(train_mask, dic, h, ls_k):
     result = torch.stack(ls).float()
 
     res = []
+    # For all possible k-fold values
     for k in ls_k:
         discount = (torch.tensor([i for i in range(k)]) + 2).log2()
         ideal, _ = result.sort(descending = True)
@@ -113,11 +115,12 @@ if __name__ == '__main__':
     tags_path = path + '/Games_Tags.txt'
 
     # Build user-item and user-user heterogeneous
+    #^ 3 - batch size
     DataLoader = Dataloader_steam(args, path, user_id_path, app_id_path, app_info_path, friends_path, developer_path, publisher_path, genres_path, country_path, tags_path, categorical_review_score_path, app_sentiments_path)
 
     graph = DataLoader.graph
     # Build item-item heterogeneous graph
-    DataLoader_item = Dataloader_item_graph(graph, app_id_path, publisher_path, developer_path, genres_path, tags_path, cos_similarity_path)
+    DataLoader_item = Dataloader_item_graph(graph, app_id_path, publisher_path, developer_path, genres_path, tags_path, cos_similarity_path, categorical_review_score_path, app_sentiments_path)
 
     graph_item = DataLoader_item.graph
 
@@ -136,10 +139,12 @@ if __name__ == '__main__':
         train_mask[i, :][item_train] = 1
     train_mask = train_mask.bool()
 
+    #^ 1 - Embed Size
     model = Proposed_model(args, graph, graph_item)
 
     predictor = HeteroDotProductPredictor()
     model.to(device)
+    #^ 2 - Learning Rate
     opt = torch.optim.Adam(model.parameters(), lr = args.lr)
 
     stop_count = 0
@@ -153,6 +158,7 @@ if __name__ == '__main__':
         graph_neg = construct_negative_graph(graph, ('user', 'play', 'game'))
         h = model.forward(graph, graph_item, graph_social)
 
+        # Compute for loss based on predicted scores computed from dot product of node features
         score = predictor(graph, h, ('user', 'play', 'game'))
         score_neg = predictor(graph_neg, h, ('user', 'play', 'game'))
         # loss = tensor(loss, requires_grad=True)

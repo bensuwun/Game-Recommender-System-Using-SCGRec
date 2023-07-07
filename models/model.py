@@ -55,13 +55,22 @@ class Proposed_model(nn.Module):
             self.layers.append(h2h)
 
     def forward(self, graph, item_graph, social_graph):
-
+        """
+            graph : HeteroGraphConv - represents the user-game graph with respect to dwelling time
+            item_graph : HeteroGraphConv - represents the item-item graph or game context graph
+            social_graph : HeteroGraphConv - represents the social graph (user friends)
+        """
+        # Node features from game context graph
         h_game = item_graph.ndata['h']
+
+        # For each HeteroGraphConv layer with respect to game context graph, compute new features for game nodes
         for layer in self.layers:
             h_game = layer(item_graph, {'game': h_game})['game']
 
+        # Obtain subgraph with game -> user relations
         graph_game2user = dgl.edge_type_subgraph(graph, ['played by'])
 
+        
         weight = graph.edata['weight'][('game', 'played by', 'user')]
         h_user_aggregate = self.item_conv(graph_game2user, (h_game, self.user_embedding), edge_weight = weight)
 
@@ -69,6 +78,7 @@ class Proposed_model(nn.Module):
         social_weight = social_weight.sum(1)
         h_user_social = self.social_conv(social_graph, self.user_embedding, edge_weight = social_weight)
 
+        # Compute for new user embedding based on the aggregations
         user_embed = (1 - self.args.social_g - self.args.item_g) * self.user_embedding + self.args.item_g * h_user_aggregate + self.args.social_g * h_user_social
 
         return {"user": user_embed, "game": self.item_embedding}
