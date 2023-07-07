@@ -45,6 +45,7 @@ def validate(train_mask, dic, h, ls_k):
     rating = torch.mm(user_embedding, game_embedding.t())
     rating[train_mask] = -float('inf')
 
+    # Create valid mask with similar shape as train_mask and set owned games to 1
     valid_mask = torch.zeros_like(train_mask)
     for i in range(users.shape[0]):
         user = int(users[i])
@@ -56,6 +57,7 @@ def validate(train_mask, dic, h, ls_k):
     result = torch.stack(ls).float()
 
     res = []
+    # For all possible k-fold values
     for k in ls_k:
         discount = (torch.tensor([i for i in range(k)]) + 2).log2()
         ideal, _ = result.sort(descending = True)
@@ -156,6 +158,7 @@ if __name__ == '__main__':
         graph_neg = construct_negative_graph(graph, ('user', 'play', 'game'))
         h = model.forward(graph, graph_item, graph_social)
 
+        # Compute for loss based on predicted scores computed from dot product of node features
         score = predictor(graph, h, ('user', 'play', 'game'))
         score_neg = predictor(graph_neg, h, ('user', 'play', 'game'))
         # loss = tensor(loss, requires_grad=True)

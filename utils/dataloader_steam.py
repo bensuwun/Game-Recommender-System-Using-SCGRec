@@ -274,7 +274,16 @@ class Dataloader_steam(DGLDataset):
         generalized_senti_scores = senti_scores.mean(axis = 1)
         generalized_senti_scores = self.convert_senti_scores(generalized_senti_scores)
 
-        # Map app ids, key = mapped app id | value = categorical sentiment score (.items() does not include nan values)
+        # Replace sentiment score nans with mean
+        mean = generalized_senti_scores.mean()
+        generalized_senti_scores.replace(to_replace=np.nan, value=mean, inplace=True)
+
+        # Normalize/Standardize sentiment scores
+        mean = generalized_senti_scores.mean()
+        std = generalized_senti_scores.std()
+        generalized_senti_scores = (generalized_senti_scores - mean) / std
+
+        # Map app ids, key = mapped app id | value = categorical sentiment score
         mapping = {}
         for appid, score in generalized_senti_scores.items():
             # Only read non null/nan values
